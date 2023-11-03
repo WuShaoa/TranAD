@@ -235,7 +235,7 @@ def load_data(dataset):
         error_split_probablity = 0.5
         # dd = 1
         disturbc = []
-        labelsc = []
+        labelsc = np.zeros_like(tc)
         np.random.seed(42) #<arg>
 
         for i,t in enumerate(tc):
@@ -246,7 +246,7 @@ def load_data(dataset):
                 tc[i] += d  #TODO: disturb_scale
                 tc[i] = np.abs(tc[i])
                 # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
-                labelsc.append(np.array([0.0])) #1 # abnormal
+                labelsc[i] = 1.0 #1 # abnormal TODO：comment for test
                 disturbc.append(d)
                 # else:
                 #     # swap error
@@ -255,8 +255,8 @@ def load_data(dataset):
                 #     tc[i] = temp
                 #     labelsc.append(np.array([1.0]))
             else:
-                    labelsc.append(np.array([1.0])) #0
-                    disturbc.append(0.0)
+                #labelsc.append(np.array([0.0])) #0#TODO：comment for test
+                disturbc.append(0.0)#TODO：comment for test
 
         # print(labelsc[:200])
         # channel = pd.DataFrame(xc)
@@ -269,8 +269,8 @@ def load_data(dataset):
         #################################################
         # train, min_a, max_a = normalize2(xc)
         # test, _, _ = normalize2(tc, min_a, max_a)
-        train = np.array(xc)
-        test = np.array(tc)
+        train = np.array(xc).reshape((-1,1))#TODO：comment for test
+        test = np.array(tc).reshape((-1,1))#TODO：comment for test
         labels = np.array(labelsc).reshape((-1,1)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))
