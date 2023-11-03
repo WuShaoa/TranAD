@@ -29,7 +29,7 @@ lr_d = {
 		'UCR': 0.006, 
 		'NAB': 0.009, 
 		'MBA': 0.001, 
-		'addr1394': 0.0001, ## TODO
+		'addr1394': 0.007, ## TODO
 	}
 lr = lr_d[args.dataset]
 
@@ -45,7 +45,7 @@ percentiles = {
 		'UCR': (98, 2),
 		'NAB': (98, 2),
 		'MBA': (99, 2),
-		'addr1394': (99, 2), ## TODO
+		'addr1394': (99, 10), ## TODO
 	}
 percentile_merlin = percentiles[args.dataset][0]
 cvp = percentiles[args.dataset][1]

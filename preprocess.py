@@ -7,6 +7,7 @@ import json
 from src.folderconstants import *
 from shutil import copyfile
 from sklearn import preprocessing
+import matplotlib.pyplot as plt
 
 datasets = ['synthetic', 'SMD', 'SWaT', 'SMAP', 'MSL', 'WADI', 'MSDS', 'UCR', 'MBA', 'NAB',"addr1394"]
 
@@ -126,6 +127,8 @@ def load_data(dataset):
         labels = labels.values[::1, 1:]
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file).astype('float64'))
+        # print(labels.shape)
+        # print(labels)
     elif dataset == 'SWaT':
         dataset_folder = 'data/SWaT'
         file = os.path.join(dataset_folder, 'series.json')
@@ -136,6 +139,10 @@ def load_data(dataset):
         labels = pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))
+
+        # plt.plot(labels[:,0],c='b')
+        # plt.plot(labels[:,1],alpha=0.7,c='r')
+        # plt.show()
     elif dataset in ['SMAP', 'MSL']:
         dataset_folder = 'data/SMAP_MSL'
         file = os.path.join(dataset_folder, 'labeled_anomalies.csv')
@@ -197,6 +204,7 @@ def load_data(dataset):
             labels[ls + i, :] = 1
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))
+
     elif dataset == 'addr1394':
         dataset_folder = 'data/addr1394'
         #~Read channel data (address)
@@ -207,35 +215,47 @@ def load_data(dataset):
         
         #~Normalization
 
-        min_max_scaler = preprocessing.MinMaxScaler()
+        min_max_scaler = preprocessing.MinMaxScaler() #!!
 
-        xc = channel.values[0:100000]
-        xc_scaled = min_max_scaler.fit_transform(xc)
-        channel = pd.DataFrame(xc_scaled)
+        xc = channel.values[0:1500] #cut values #<arg>
+        xc_scaled = min_max_scaler.fit_transform(xc) #!!
+        channel = pd.DataFrame(xc_scaled) #!!
 
         split_ratio = 0.7 #0.5 #<arg>
-        xc = channel.values
+        xc = channel.values# !!
         tc = xc[int(len(xc) * split_ratio):]
         xc = xc[:int(len(xc) * split_ratio)]
         # plt.plot(xc[0:500])
+        # plt.plot(tc[0:500])
+        # plt.show()
 
         #Label generatoin for tc
-        disturb_scale = 1.0 #255 #0.25 #<arg>
-        disturb_probability = 0.1 #<arg> 0.01
+        disturb_scale = 1 #255 #0.25 #<arg>
+        disturb_probability = 0.02 #<arg> 0.01
+        error_split_probablity = 0.5
+        # dd = 1
         disturbc = []
         labelsc = []
         np.random.seed(42) #<arg>
 
         for i,t in enumerate(tc):
             if np.random.rand(1)[0] < disturb_probability:
-                    # add disturb
-                    d = np.random.randn(1)[0] #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
-                    tc[i] += d + d * t #TODO: disturb_scale
-                    tc[i] = np.abs(tc[i])
-                    labelsc.append(1.0) # abnormal
-                    disturbc.append(d+d * t)
+                # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
+                # add disturb
+                d = np.abs(disturb_scale * np.random.randn(1)[0]) + 0.1 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
+                tc[i] += d  #TODO: disturb_scale
+                tc[i] = np.abs(tc[i])
+                # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
+                labelsc.append(np.array([0.0])) #1 # abnormal
+                disturbc.append(d)
+                # else:
+                #     # swap error
+                #     temp = tc[i + 1]
+                #     tc[i + 1] = tc[i]
+                #     tc[i] = temp
+                #     labelsc.append(np.array([1.0]))
             else:
-                    labelsc.append(0.0)
+                    labelsc.append(np.array([1.0])) #0
                     disturbc.append(0.0)
 
         # print(labelsc[:200])
@@ -247,8 +267,10 @@ def load_data(dataset):
         # channel_ano.head(50)
 
         #################################################
-        train, min_a, max_a = normalize2(xc)
-        test, _, _ = normalize2(tc, min_a, max_a)
+        # train, min_a, max_a = normalize2(xc)
+        # test, _, _ = normalize2(tc, min_a, max_a)
+        train = np.array(xc)
+        test = np.array(tc)
         labels = np.array(labelsc).reshape((-1,1)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))

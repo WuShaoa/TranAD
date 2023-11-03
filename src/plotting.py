@@ -4,7 +4,7 @@ import statistics
 import os, torch
 import numpy as np
 
-plt.style.use(['classic'])
+plt.style.use(['seaborn-v0_8-paper']) #science
 plt.rcParams["text.usetex"] = False
 plt.rcParams['figure.figsize'] = 6, 2
 
@@ -25,13 +25,14 @@ def plotter(name, y_true, y_pred, ascore, labels):
 		ax1.set_ylabel('Value')
 		ax1.set_title(f'Dimension = {dim}')
 		# if dim == 0: np.save(f'true{dim}.npy', y_t); np.save(f'pred{dim}.npy', y_p); np.save(f'ascore{dim}.npy', a_s)
-		ax1.plot(smooth(y_t), linewidth=0.2, label='True')
-		ax1.plot(smooth(y_p), '-', alpha=0.6, linewidth=0.3, label='Predicted')
+		ax1.plot(y_t, linewidth=0.2, label='True')#smooth
+		ax1.plot(y_p, '-', alpha=0.6, linewidth=0.2, label='Predicted')#smooth
 		ax3 = ax1.twinx()
+		l = -l + 1
 		ax3.plot(l, '--', linewidth=0.3, alpha=0.5)
 		ax3.fill_between(np.arange(l.shape[0]), l, color='blue', alpha=0.3)
 		if dim == 0: ax1.legend(ncol=2, bbox_to_anchor=(0.6, 1.02))
-		ax2.plot(smooth(a_s), linewidth=0.2, color='g')
+		ax2.plot(a_s, linewidth=0.2, color='g')#smooth
 		ax2.set_xlabel('Timestamp')
 		ax2.set_ylabel('Anomaly Score')
 		pdf.savefig(fig)
