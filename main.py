@@ -34,6 +34,7 @@ def load_dataset(dataset):
 		if dataset == 'MSL': file = 'C-1_' + file
 		if dataset == 'UCR': file = '136_' + file
 		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
+		if dataset == 'addr1394': file = file
 		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
 	# loader = [i[:, debug:debug+1] for i in loader]
 	if args.less: loader[0] = cut_array(0.2, loader[0])
@@ -296,7 +297,7 @@ if __name__ == '__main__':
 	train_loader, test_loader, labels = load_dataset(args.dataset)
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
-	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1])
+	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1]) ##DONE:ERROR HERE; fixed: label not reshaped (-1,1)
 
 	## Prepare data
 	trainD, testD = next(iter(train_loader)), next(iter(test_loader))
