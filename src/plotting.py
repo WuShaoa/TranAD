@@ -16,7 +16,7 @@ def smooth(y, box_pts=1):
     return y_smooth
 
 def plotter(name, y_true, y_pred, ascore, labels):
-	if 'TranAD' in name: y_true = torch.roll(y_true, 1, 0)
+	# if 'TranAD' in name: y_true = torch.roll(y_true, 1, 0)
 	os.makedirs(os.path.join('plots', name), exist_ok=True)
 	pdf = PdfPages(f'plots/{name}/output.pdf')
 	for dim in range(y_true.shape[1]):
@@ -28,7 +28,7 @@ def plotter(name, y_true, y_pred, ascore, labels):
 		ax1.plot(y_t, linewidth=0.2, label='True')#smooth
 		ax1.plot(y_p, '-', alpha=0.6, linewidth=0.2, label='Predicted')#smooth
 		ax3 = ax1.twinx()
-		l = -l + 1
+		l = -l + 1 #
 		ax3.plot(l, '--', linewidth=0.3, alpha=0.5)
 		ax3.fill_between(np.arange(l.shape[0]), l, color='blue', alpha=0.3)
 		if dim == 0: ax1.legend(ncol=2, bbox_to_anchor=(0.6, 1.02))

@@ -40,3 +40,10 @@ def getresults2(df, result):
 		results2[a] = df2[a]
 	results2['f1*'] = 2 * results2['precision'] * results2['recall'] / (results2['precision'] + results2['recall'])
 	return results2
+
+def  get_random_index(n, size):
+    index = np.random.choice(np.arange(n), size=size, replace=False)
+    return index
+
+# def get_shuffled_index(n):
+    

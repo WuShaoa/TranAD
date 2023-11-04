@@ -217,11 +217,11 @@ def load_data(dataset):
 
         min_max_scaler = preprocessing.MinMaxScaler() #!!
 
-        xc = channel.values[0:1500] #cut values #<arg>
+        xc = channel.values[0:2000]  # [0:1500] #cut values #<arg>
         xc_scaled = min_max_scaler.fit_transform(xc) #!!
         channel = pd.DataFrame(xc_scaled) #!!
 
-        split_ratio = 0.7 #0.5 #<arg>
+        split_ratio = 0.7 #0.7 #0.5 #<arg>
         xc = channel.values# !!
         tc = xc[int(len(xc) * split_ratio):]
         xc = xc[:int(len(xc) * split_ratio)]
@@ -231,22 +231,23 @@ def load_data(dataset):
 
         #Label generatoin for tc
         disturb_scale = 1 #255 #0.25 #<arg>
-        disturb_probability = 0.02 #<arg> 0.01
+        disturb_probability = 0.05 #0.02 #<arg> 0.01
         error_split_probablity = 0.5
         # dd = 1
         disturbc = []
-        labelsc = np.zeros_like(tc)
+        labelsc = np.ones_like(tc)
         np.random.seed(42) #<arg>
 
         for i,t in enumerate(tc):
             if np.random.rand(1)[0] < disturb_probability:
+            # if np.random.randn(1)[0] > 2.1: # disturb_probability:
                 # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
                 # add disturb
-                d = np.abs(disturb_scale * np.random.randn(1)[0]) + 0.1 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
+                d = disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
                 tc[i] += d  #TODO: disturb_scale
-                tc[i] = np.abs(tc[i])
+                # tc[i] = np.abs(tc[i])
                 # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
-                labelsc[i] = 1.0 #1 # abnormal TODO：comment for test
+                labelsc[i] = 0.0 #False #1 # abnormal TODO：comment for test
                 disturbc.append(d)
                 # else:
                 #     # swap error
@@ -271,7 +272,7 @@ def load_data(dataset):
         # test, _, _ = normalize2(tc, min_a, max_a)
         train = np.array(xc).reshape((-1,1))#TODO：comment for test
         test = np.array(tc).reshape((-1,1))#TODO：comment for test
-        labels = np.array(labelsc).reshape((-1,1)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
+        labels = np.array(labelsc, dtype=float).reshape((-1,1)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))
     else:
