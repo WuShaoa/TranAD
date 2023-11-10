@@ -177,7 +177,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
 				ae1s.append(ae1); ae2s.append(ae2); ae2ae1s.append(ae2ae1)
 			ae1s, ae2s, ae2ae1s = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s)
 			y_pred = ae1s[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-			loss = 0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
+			loss = 0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.8 * l(ae1s, data) + 0.2 * l(ae2ae1s, data)#0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
 			loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
 			return loss.detach().numpy(), y_pred.detach().numpy() # forward(test) return: loss, ypred
 	elif model.name in ['GDN', 'MTAD_GAT', 'MSCRED', 'CAE_M']:
@@ -295,6 +295,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
 
 if __name__ == '__main__':
 	train_loader, test_loader, labels = load_dataset(args.dataset)
+	labels = -labels + 1
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1]) ##DONE:ERROR HERE; fixed: label not reshaped (-1,1)
@@ -308,7 +309,7 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 50; e = epoch + 1; start = time() #epochs = 5 #<args>
+		num_epochs = 25; e = epoch + 1; start = time() #epochs = 5 25#<args>
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler)
 			accuracy_list.append((lossT, lr))
@@ -318,11 +319,20 @@ if __name__ == '__main__':
 
 	### Testing phase
 	with torch.no_grad():
+		if "TranAD" in model.name or "USAD" in model.name: labels = np.roll(labels, 1, 0) #<arg> "TranAD" in model.name or "USAD" in model.name # reason: predict is shifted by 1(latter)
 		model.train(False)
 		model.eval()
 		print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
 		loss, y_pred = backprop(0, model, testD, testO, optimizer, scheduler, training=False)
-
+		### DEBUG: plt
+		plt.plot(loss, c='red', label='loss')
+		plt.plot(y_pred, c='blue', label='y_pred')
+		plt.plot(testO, c='green', label='y_test')
+		plt.plot(labels, c='black', label='labels')
+		plt.legend()
+		plt.show()
+  		###
+  
 		### Plot curves
 		if not args.test:
 			if 'TranAD' in model.name: testO = torch.roll(testO, 1, 0) 
@@ -334,12 +344,14 @@ if __name__ == '__main__':
 		for i in range(loss.shape[1]):
 			lt, l, ls = lossT[:, i], loss[:, i], labels[:, i]
 			result, pred = pot_eval(lt, l, ls); preds.append(pred)
-			df = df.append(result, ignore_index=True)
+			result_df = pd.DataFrame(result, index=[0])  # Convert dictionary to DataFrame
+			df = pd.concat([df, result_df], ignore_index=True)
+			# df = pd.concat([df, result], ignore_index=True)
 		# preds = np.concatenate([i.reshape(-1, 1) + 0 for i in preds], axis=1)
 		# pd.DataFrame(preds, columns=[str(i) for i in range(10)]).to_csv('labels.csv')
 		lossTfinal, lossFinal = np.mean(lossT, axis=1), np.mean(loss, axis=1)
 		labelsFinal = (np.sum(labels, axis=1) >= 1) + 0
-		result, _ = pot_eval(lossTfinal, lossFinal, labelsFinal)
+		result, _ = pot_eval(lossTfinal, lossFinal, labelsFinal, plot=True)
 		result.update(hit_att(loss, labels))
 		result.update(ndcg(loss, labels))
 		print(df)

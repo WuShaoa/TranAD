@@ -3,6 +3,7 @@ import numpy as np
 from src.spot import SPOT
 from src.constants import *
 from sklearn.metrics import *
+import matplotlib.pyplot as plt
 
 def calc_point2point(predict, actual):
     """
@@ -117,7 +118,7 @@ def bf_search(score, label, start, end=None, step_num=1, display_freq=1, verbose
     return m, m_t
 
 
-def pot_eval(init_score, score, label, q=1e-5, level=0.02):
+def pot_eval(init_score, score, label, q=1e-5, level=0.02,plot=False):#q=1e-5
     """
     Run POT method on given score.
     Args:
@@ -148,6 +149,17 @@ def pot_eval(init_score, score, label, q=1e-5, level=0.02):
     pred, p_latency = adjust_predicts(score, label, pot_th, calc_latency=True)
     # DEBUG - np.save(f'{debug}.npy', np.array(pred))
     # DEBUG - print(np.argwhere(np.array(pred)))
+    ### DEBUG
+    if plot:
+        
+        plt.plot(label, label='label', linewidth=2, alpha=0.7)
+        plt.plot(pred, label='pred', linestyle='--', linewidth=1.7, alpha=0.7)
+        plt.plot(score , label='score', linewidth=2, alpha=0.8)
+        plt.legend()
+        plt.show()
+
+    # pred = np.roll(pred, shift_pred, 0)#output of adjust_predicts is shifted left by 1
+    ###
     p_t = calc_point2point(pred, label)
     # print('POT result: ', p_t, pot_th, p_latency)
     return {

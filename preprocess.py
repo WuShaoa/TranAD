@@ -217,7 +217,7 @@ def load_data(dataset):
 
         min_max_scaler = preprocessing.MinMaxScaler() #!!
 
-        xc = channel.values[0:2000]  # [0:1500] #cut values #<arg>
+        xc = channel.values[0:3000] #[0:2000]  # [0:1500] #cut values #<arg>
         xc_scaled = min_max_scaler.fit_transform(xc) #!!
         channel = pd.DataFrame(xc_scaled) #!!
 
@@ -232,10 +232,13 @@ def load_data(dataset):
         #Label generatoin for tc
         disturb_scale = 1 #255 #0.25 #<arg>
         disturb_probability = 0.05 #0.02 #<arg> 0.01
+        disturb_n_threshold_min = 0.2 #<arg>
+        disturb_n_threshold_max = 0.8 #<arg>
         error_split_probablity = 0.5
         # dd = 1
         disturbc = []
         labelsc = np.ones_like(tc)
+        ttc = tc.copy()
         np.random.seed(42) #<arg>
 
         for i,t in enumerate(tc):
@@ -243,10 +246,13 @@ def load_data(dataset):
             # if np.random.randn(1)[0] > 2.1: # disturb_probability:
                 # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
                 # add disturb
-                d = disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
-                tc[i] += d  #TODO: disturb_scale
-                # tc[i] = np.abs(tc[i])
+                d = 0
+                while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max:
+                    d = disturb_scale * np.random.randn(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
+                ttc[i] += d  #TODO: disturb_scale
+                ttc[i] = abs(ttc[i])
                 # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
+                print(ttc[i])
                 labelsc[i] = 0.0 #False #1 # abnormal TODO：comment for test
                 disturbc.append(d)
                 # else:
@@ -266,12 +272,20 @@ def load_data(dataset):
         # print(channel.shape, channel_ano.shape)
         # channel.head(20)
         # channel_ano.head(50)
-
+        ### DEBUG
+        plt.plot(disturbc[:1000], label='disturb')
+        plt.plot(np.array(ttc), label='ttc')
+        plt.plot(np.array(ttc) - np.array(tc), label='vari')
+        plt.plot(labelsc, label='labels')
+        plt.legend()
+        plt.show()
+        ###
+        
         #################################################
         # train, min_a, max_a = normalize2(xc)
         # test, _, _ = normalize2(tc, min_a, max_a)
         train = np.array(xc).reshape((-1,1))#TODO：comment for test
-        test = np.array(tc).reshape((-1,1))#TODO：comment for test
+        test = np.array(ttc).reshape((-1,1))#TODO：comment for test
         labels = np.array(labelsc, dtype=float).reshape((-1,1)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))

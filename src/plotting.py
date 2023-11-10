@@ -28,7 +28,7 @@ def plotter(name, y_true, y_pred, ascore, labels):
 		ax1.plot(y_t, linewidth=0.2, label='True')#smooth
 		ax1.plot(y_p, '-', alpha=0.6, linewidth=0.2, label='Predicted')#smooth
 		ax3 = ax1.twinx()
-		l = -l + 1 #
+		# l = -l + 1 #DONE: No need to flip the labels, [refer pot.py]{del}, refer main.py, if "TranAD" in model.name or "USAD" in model.name: labels = np.roll(labels, 1, 0)
 		ax3.plot(l, '--', linewidth=0.3, alpha=0.5)
 		ax3.fill_between(np.arange(l.shape[0]), l, color='blue', alpha=0.3)
 		if dim == 0: ax1.legend(ncol=2, bbox_to_anchor=(0.6, 1.02))
