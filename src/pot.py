@@ -152,9 +152,10 @@ def pot_eval(init_score, score, label, q=1e-5, level=0.02,plot=False):#q=1e-5
     ### DEBUG
     if plot:
         
-        plt.plot(label, label='label', linewidth=2, alpha=0.7)
-        plt.plot(pred, label='pred', linestyle='--', linewidth=1.7, alpha=0.7)
-        plt.plot(score , label='score', linewidth=2, alpha=0.8)
+        plt.plot(score , label='score', linewidth=2, alpha=0.9)
+        plt.plot(label, label='label', linewidth=2, alpha=0.9)
+        plt.plot(pred, label='pred', linestyle='--', linewidth=1.7, alpha=0.9)
+        
         plt.legend()
         plt.show()
 

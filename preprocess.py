@@ -231,9 +231,9 @@ def load_data(dataset):
 
         #Label generatoin for tc
         disturb_scale = 1 #255 #0.25 #<arg>
-        disturb_probability = 0.05 #0.02 #<arg> 0.01
-        disturb_n_threshold_min = 0.2 #<arg>
-        disturb_n_threshold_max = 0.8 #<arg>
+        disturb_probability = 0.03 #0.05 0.02 #<arg> 0.01
+        disturb_n_threshold_min = 0.2 #0.2 <arg>
+        disturb_n_threshold_max = 1.2 #0.8 #<arg>
         error_split_probablity = 0.5
         # dd = 1
         disturbc = []
