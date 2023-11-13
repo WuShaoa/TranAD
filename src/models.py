@@ -168,7 +168,7 @@ class USAD(nn.Module):
 		self.n_feats = feats
 		self.n_hidden = 16
 		self.n_latent = 5
-		self.n_window = 5 # USAD w_size = 5
+		self.n_window = 16 # USAD w_size = 5
 		self.n = self.n_feats * self.n_window
 		self.encoder = nn.Sequential(
 			nn.Flatten(),

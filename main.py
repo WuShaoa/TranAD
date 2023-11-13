@@ -25,7 +25,7 @@ def convert_to_windows(data, model):
 	return torch.stack(windows)
 
 def load_dataset(dataset):
-	folder = os.path.join(output_folder, dataset + "_classic") # TODO: don't use classic data, too many peaks, not good anomalies (same to normal data)
+	folder = os.path.join(output_folder, dataset) # + "_classic") # TODO: don't use classic data, too many peaks, not good anomalies (same to normal data)
 	if not os.path.exists(folder):
 		raise Exception('Processed Data not found.')
 	loader = []
@@ -178,7 +178,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
 				ae1s.append(ae1); ae2s.append(ae2); ae2ae1s.append(ae2ae1)
 			ae1s, ae2s, ae2ae1s = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s)
 			y_pred = ae1s[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-			loss = 0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.8 * l(ae1s, data) + 0.2 * l(ae2ae1s, data)#0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
+			loss = 0.1 * l(ae1s, data) + 0.9 * l(ae2ae1s, data)#0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.8 * l(ae1s, data) + 0.2 * l(ae2ae1s, data)#0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
 			loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
 			return loss.detach().numpy(), y_pred.detach().numpy() # forward(test) return: loss, ypred
 	elif model.name in ['GDN', 'MTAD_GAT', 'MSCRED', 'CAE_M']:
@@ -339,11 +339,11 @@ if __name__ == '__main__':
 		plt.ylabel('Value')
 		plt.xlabel('Time')
 		plt.legend()
-
+		yy = np.roll(y_pred, -1, 0)
 		plt.subplot(2, 1, 2)
 		plt.plot(testO, c='green', label='y_test', alpha=0.8, linewidth=2)
-		plt.plot(y_pred, c='blue', label='y_pred', linestyle='-', alpha=0.8, linewidth=1.5)
-		plt.fill_between(range(len(y_pred)), y_pred.squeeze(), alpha=0.2, color='blue')
+		plt.plot(yy, c='blue', label='y_pred', linestyle='-', alpha=0.8, linewidth=1.5)
+		plt.fill_between(range(len(yy)), yy.squeeze(), alpha=0.2, color='blue')
 		plt.xlabel('Time')
 		plt.ylabel('Value')
 		plt.legend()
