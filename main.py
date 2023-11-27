@@ -296,7 +296,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
 
 if __name__ == '__main__':
 	train_loader, test_loader, labels = load_dataset(args.dataset)
-	labels = -labels + 1
+	# labels = -labels + 1
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1]) ##DONE:ERROR HERE; fixed: label not reshaped (-1,1)
@@ -310,7 +310,7 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 25; e = epoch + 1; start = time() #epochs = 5 25#<args>
+		num_epochs = 5; e = epoch + 1; start = time() #epochs = 5 25#<args>
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler)
 			accuracy_list.append((lossT, lr))
@@ -327,8 +327,8 @@ if __name__ == '__main__':
 		loss, y_pred = backprop(0, model, testD, testO, optimizer, scheduler, training=False)
 		### DEBUG: plt
 
-		sns.set_style("darkgrid")
-		sns.set_palette("pastel")
+		# sns.set_style("darkgrid")
+		# sns.set_palette("pastel")
 
 		plt.figure(figsize=(12, 6))
 		plt.subplot(2, 1, 1)
@@ -350,7 +350,6 @@ if __name__ == '__main__':
 
 		plt.title(f'{args.model} on {args.dataset}')
 
-		
 		plt.show()
   		###
   

@@ -9,7 +9,7 @@ from shutil import copyfile
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
 
-datasets = ['synthetic', 'SMD', 'SWaT', 'SMAP', 'MSL', 'WADI', 'MSDS', 'UCR', 'MBA', 'NAB',"addr1394"]
+datasets = ['synthetic', 'SMD', 'SWaT', 'SMAP', 'MSL', 'WADI', 'MSDS', 'UCR', 'MBA', 'NAB','addr1394']
 
 wadi_drop = ['2_LS_001_AL', '2_LS_002_AL','2_P_001_STATUS','2_P_002_STATUS']
 
@@ -209,6 +209,11 @@ def load_data(dataset):
         dataset_folder = 'data/addr1394'
         #~Read channel data (address)
         # 1394 protocal
+        # df_dst = pd.read_csv(os.path.join(dataset_folder,"channels_1394_DST.csv"))
+        # df_id = pd.read_csv(os.path.join(dataset_folder,"channels_1394_ID.csv"))   
+        # df_comb = pd.concat([df_dst, df_id], axis=1)
+        # dd = df_comb.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16)))
+        
         channel = pd.read_csv(os.path.join(dataset_folder,'channel.csv'), header=None)
         channel = channel.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16)))
         channel = channel.astype(float)
@@ -217,27 +222,37 @@ def load_data(dataset):
 
         min_max_scaler = preprocessing.MinMaxScaler() #!!
 
-        xc = channel.values[0:10000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values #<arg>
+        xc = channel.values[0:10000] #[0:8000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values #<arg>
         xc_scaled = min_max_scaler.fit_transform(xc) #!!
-        channel = pd.DataFrame(xc_scaled) #!!
-
+        print(xc_scaled.shape)
+        # channel = pd.DataFrame(xc_scaled) #!!
+        ## DEBUG
+        plt.plot(xc[:50000], label='xc')
+        plt.plot(xc_scaled[:50000], label='xc_s')
+        plt.legend()
+        plt.show()
+        ##
         split_ratio = 0.7 #0.7 #0.5 #<arg>
-        xc = channel.values# !!
-        tc = xc[int(len(xc) * split_ratio):]
-        xc = xc[:int(len(xc) * split_ratio)]
+        # xc_scaled = channel.values# !!
+        tc = xc_scaled[int(len(xc) * split_ratio):]
+        xc = xc_scaled[:int(len(xc) * split_ratio)]
         # plt.plot(xc[0:500])
         # plt.plot(tc[0:500])
         # plt.show()
+        plt.plot(tc[:1000], label='tc')
+        # plt.plot(tc_scaled[:1000], label='tc_s')
+        plt.legend()
+        plt.show()
 
         #Label generatoin for tc
-        disturb_scale = 1 #255 #0.25 #<arg>
+        disturb_scale = 1.0 #255 #0.25 #<arg>
         disturb_probability = 0.01 #0.05 0.02 #<arg> 0.01
-        disturb_n_threshold_min = 0.2 #0.2 <arg>
-        disturb_n_threshold_max = 0.8 #0.8 #<arg>
+        disturb_n_threshold_min = 0.3 #0.2 <arg>
+        disturb_n_threshold_max = 1.0 #0.8 #<arg>
         error_split_probablity = 0.5
         # dd = 1
         disturbc = []
-        labelsc = np.ones_like(tc)
+        labelsc = np.zeros_like(tc)
         ttc = tc.copy()
         np.random.seed(42) #<arg>
 
@@ -246,14 +261,19 @@ def load_data(dataset):
             # if np.random.randn(1)[0] > 2.1: # disturb_probability:
                 # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
                 # add disturb
-                d = 0
-                while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max:
-                    d = disturb_scale * np.random.randn(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
+                d = disturb_scale * np.random.random(1)[0]
+                while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max or abs(d) == ttc[i]:
+                    d = disturb_scale * np.random.random(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
                 ttc[i] += d  #TODO: disturb_scale
                 ttc[i] = abs(ttc[i])
+                
+                # d = disturb_scale * np.random.randn(1)[0]
+                # while d < disturb_n_threshold_min or d > disturb_n_threshold_max or d == ttc[i]:
+                #     d = disturb_scale * np.random.randn(1)[0]
+                # ttc[i] = d
                 # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
-                print(ttc[i])
-                labelsc[i] = 0.0 #False #1 # abnormal TODO：comment for test
+                # print(ttc[i])
+                labelsc[i] = 1.0 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
                 disturbc.append(d)
                 # else:
                 #     # swap error
@@ -262,8 +282,8 @@ def load_data(dataset):
                 #     tc[i] = temp
                 #     labelsc.append(np.array([1.0]))
             else:
-                #labelsc.append(np.array([0.0])) #0#TODO：comment for test
-                disturbc.append(0.0)#TODO：comment for test
+                #labelsc.append(np.array([0.0])) #0#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
+                disturbc.append(0.0)#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
 
         # print(labelsc[:200])
         # channel = pd.DataFrame(xc)
