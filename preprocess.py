@@ -207,6 +207,7 @@ def load_data(dataset):
 
     elif dataset == 'addr1394':
         dataset_folder = 'data/addr1394'
+        features_num = 2 #<arg>
         #~Read channel data (address)
         # 1394 protocal
         df_dst = pd.read_csv(os.path.join(dataset_folder,"channels_1394_DST.csv"))#目的地址（*）
@@ -232,7 +233,7 @@ def load_data(dataset):
         plt.legend()
         plt.show()
         ##
-        test_num = 1000
+        test_num = 1000 #<arg>
         # split_ratio = 0.7 #0.7 #0.5 #<arg>
         # xc_scaled = channel.values# !!
         # tc = xc_scaled[int(len(xc) * split_ratio):]
@@ -256,7 +257,7 @@ def load_data(dataset):
         disturb_probability = 0.01 #0.05 0.02 #<arg> 0.01
         disturb_n_threshold_min = 0.3 #0.2 <arg>
         disturb_n_threshold_max = 1.0 #0.8 #<arg>
-        error_split_probablity = 0.5
+        error_split_probablity = 0.5 #<arg>
         # dd = 1
         disturbc = []
         labelsc = np.zeros_like(tc)
@@ -280,7 +281,7 @@ def load_data(dataset):
                 # ttc[i] = d
                 # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
                 # print(ttc[i])
-                labelsc[i] = 1.0 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
+                labelsc[i,0] = 1.0 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
                 disturbc.append(d)
                 # else:
                 #     # swap error
@@ -326,9 +327,9 @@ def load_data(dataset):
         #################################################
         # train, min_a, max_a = normalize2(xc)
         # test, _, _ = normalize2(tc, min_a, max_a)
-        train = np.array(xc).reshape((-1,1))#TODO：comment for test
-        test = np.array(ttc).reshape((-1,1))#TODO：comment for test
-        labels = np.array(labelsc, dtype=float).reshape((-1,1)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
+        train = np.array(xc).reshape((-1,features_num))#TODO：comment for test
+        test = np.array(ttc).reshape((-1,features_num))#TODO：comment for test
+        labels = np.array(labelsc, dtype=float).reshape((-1,features_num)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
         for file in ['train', 'test', 'labels']:
             np.save(os.path.join(folder, f'{file}.npy'), eval(file))
     else:

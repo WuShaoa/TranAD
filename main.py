@@ -344,7 +344,11 @@ if __name__ == '__main__':
 		print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
 		loss, y_pred = backprop(0, model, testD, testO, optimizer, scheduler, training=False)
 		### DEBUG: plt
-
+		print("loss shape:", loss.shape)
+		print("y_pred shape:", y_pred.shape)
+		print("testO shape:", testO.shape)
+		print("train shape", trainO.shape)
+		print("labels shape:", labels.shape)
 		# sns.set_style("darkgrid")
 		# sns.set_palette("pastel")
 
@@ -379,6 +383,7 @@ if __name__ == '__main__':
 		### Scores
 		df = pd.DataFrame()
 		lossT, _ = backprop(0, model, trainD, trainO, optimizer, scheduler, training=False)
+		
 		for i in range(loss.shape[1]):
 			lt, l, ls = lossT[:, i], loss[:, i], labels[:, i]
 			result, pred = pot_eval(lt, l, ls); preds.append(pred)
