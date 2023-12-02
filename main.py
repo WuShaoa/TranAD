@@ -69,7 +69,7 @@ def save_model(model, optimizer, scheduler, epoch, accuracy_list):
 def load_model(modelname, dims):
 	import src.models
 	model_class = getattr(src.models, modelname)
-	model = model_class(dims).double().to(device)
+	model = model_class(dims).double()
 	optimizer = torch.optim.AdamW(model.parameters(), lr=model.lr, weight_decay=1e-5)
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 5, 0.9)
 	fname = f'checkpoints/{args.model}_{args.dataset}/model.ckpt'
@@ -85,7 +85,7 @@ def load_model(modelname, dims):
 		print(f"{color.GREEN}Creating new model: {model.name}{color.ENDC}")
 		epoch = -1
 		accuracy_list = []
-	return model, optimizer, scheduler, epoch, accuracy_list
+	return model.to(device), optimizer, scheduler, epoch, accuracy_list
 
 def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 	l = nn.MSELoss(reduction='mean' if training else 'none')
@@ -177,9 +177,9 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 		l1s, l2s = [], []
 		if training:
 			for d in data:
-				ae1s, ae2s, ae2ae1s = model(d)
-				l1 = (1 / n) * l(ae1s, d) + (1 - 1/n) * l(ae2ae1s, d) #comment: scaled here
-				l2 = (1 / n) * l(ae2s, d) - (1 - 1/n) * l(ae2ae1s, d)
+				ae1s, ae2s, ae2ae1s = model(d.to(device))
+				l1 = (1 / n) * l(ae1s, d.to(device)) + (1 - 1/n) * l(ae2ae1s, d.to(device)) #comment: scaled here
+				l2 = (1 / n) * l(ae2s, d.to(device)) - (1 - 1/n) * l(ae2ae1s, d.to(device))
 				l1s.append(torch.mean(l1).item()); l2s.append(torch.mean(l2).item())
 				loss = torch.mean(l1 + l2)
 				optimizer.zero_grad()
@@ -279,7 +279,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 				local_bs = d.shape[0]
 				window = d.permute(1, 0, 2)
 				elem = window[-1, :, :].view(1, local_bs, feats)
-				z = model(window, elem)
+				z = model(window.to(device), elem)
 				l1 = l(z, elem) if not isinstance(z, tuple) else (1 / n) * l(z[0], elem) + (1 - 1/n) * l(z[1], elem)
 				if isinstance(z, tuple): z = z[1]
 				l1s.append(torch.mean(l1).item())

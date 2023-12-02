@@ -223,7 +223,7 @@ def load_data(dataset):
         scaler = preprocessing.MinMaxScaler()  #preprocessing.StandardScaler()##!!
 
         xc = channel.values[0:10000] #[0:8000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values #<arg>
-        print("Input Shape:", xc.shape)
+        
         xc_scaled = scaler.fit_transform(xc) #!!
         ## DEBUG
         print(xc_scaled.shape)
@@ -232,14 +232,19 @@ def load_data(dataset):
         plt.legend()
         plt.show()
         ##
-        split_ratio = 0.7 #0.7 #0.5 #<arg>
+        test_num = 1000
+        # split_ratio = 0.7 #0.7 #0.5 #<arg>
         # xc_scaled = channel.values# !!
-        tc = xc_scaled[int(len(xc) * split_ratio):]
-        xc = xc_scaled[:int(len(xc) * split_ratio)]
+        # tc = xc_scaled[int(len(xc) * split_ratio):]
+        # xc = xc_scaled[:int(len(xc) * split_ratio)]
+        tc = xc_scaled[-test_num:]
+        xc = xc_scaled[:-test_num]
         ## DEBUG
         # plt.plot(xc[0:500])
         # plt.plot(tc[0:500])
         # plt.show()
+        print("train shape:", xc.shape)
+        print("test shape:", tc.shape)
         plt.plot(tc[:1000], label='tc')
         # plt.plot(tc_scaled[:1000], label='tc_s')
         plt.legend()

@@ -384,7 +384,7 @@ class TranAD_Transformer(nn.Module):
 		self.batch = 128
 		self.n_feats = feats
 		self.n_hidden = 8
-		self.n_window = 10
+		self.n_window = 34 #10
 		self.n = 2 * self.n_feats * self.n_window
 		self.transformer_encoder = nn.Sequential(
 			nn.Linear(self.n, self.n_hidden), nn.ReLU(True),
@@ -495,7 +495,7 @@ class TranAD(nn.Module):
 		self.lr = lr
 		self.batch = 128
 		self.n_feats = feats
-		self.n_window = 10 #50
+		self.n_window = 16 #10 #50
 		self.n = self.n_feats * self.n_window
 		self.pos_encoder = PositionalEncoding(2 * feats, 0.1, self.n_window)
 		encoder_layers = TransformerEncoderLayer(d_model=2 * feats, nhead=feats, dim_feedforward=16, dropout=0.1)
