@@ -209,26 +209,26 @@ def load_data(dataset):
         dataset_folder = 'data/addr1394'
         #~Read channel data (address)
         # 1394 protocal
-        # df_dst = pd.read_csv(os.path.join(dataset_folder,"channels_1394_DST.csv"))
-        # df_id = pd.read_csv(os.path.join(dataset_folder,"channels_1394_ID.csv"))   
-        # df_comb = pd.concat([df_dst, df_id], axis=1)
-        # dd = df_comb.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16)))
+        df_dst = pd.read_csv(os.path.join(dataset_folder,"channels_1394_DST.csv"))#目的地址（*）
+        df_id = pd.read_csv(os.path.join(dataset_folder,"channels_1394_ID.csv"))   
+        df_comb = pd.concat([df_dst, df_id], axis=1)
+        channel = df_comb.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16))).astype(float)
         
-        channel = pd.read_csv(os.path.join(dataset_folder,'channel.csv'), header=None)
-        channel = channel.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16)))
-        channel = channel.astype(float)
+        # channel = pd.read_csv(os.path.join(dataset_folder,'channel.csv'), header=None)
+        # channel = channel.apply(lambda x: x.astype(str).map(lambda x: int(x, base=16)))
+        # channel = channel.astype(float)
         
         #~Normalization
 
-        min_max_scaler = preprocessing.MinMaxScaler() #!!
+        scaler = preprocessing.MinMaxScaler()  #preprocessing.StandardScaler()##!!
 
         xc = channel.values[0:10000] #[0:8000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values #<arg>
-        xc_scaled = min_max_scaler.fit_transform(xc) #!!
-        print(xc_scaled.shape)
-        # channel = pd.DataFrame(xc_scaled) #!!
+        print("Input Shape:", xc.shape)
+        xc_scaled = scaler.fit_transform(xc) #!!
         ## DEBUG
-        plt.plot(xc[:50000], label='xc')
-        plt.plot(xc_scaled[:50000], label='xc_s')
+        print(xc_scaled.shape)
+        plt.plot(xc[:6000], label='xc')
+        plt.plot(xc_scaled[:6000], label='xc_s')
         plt.legend()
         plt.show()
         ##
@@ -236,6 +236,7 @@ def load_data(dataset):
         # xc_scaled = channel.values# !!
         tc = xc_scaled[int(len(xc) * split_ratio):]
         xc = xc_scaled[:int(len(xc) * split_ratio)]
+        ## DEBUG
         # plt.plot(xc[0:500])
         # plt.plot(tc[0:500])
         # plt.show()
@@ -243,6 +244,7 @@ def load_data(dataset):
         # plt.plot(tc_scaled[:1000], label='tc_s')
         plt.legend()
         plt.show()
+        ##
 
         #Label generatoin for tc
         disturb_scale = 1.0 #255 #0.25 #<arg>
@@ -262,10 +264,10 @@ def load_data(dataset):
                 # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
                 # add disturb
                 d = disturb_scale * np.random.random(1)[0]
-                while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max or abs(d) == ttc[i]:
+                while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max or abs(d) == ttc[:,0][i]:
                     d = disturb_scale * np.random.random(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
-                ttc[i] += d  #TODO: disturb_scale
-                ttc[i] = abs(ttc[i])
+                ttc[:,0][i] += d  #TODO: disturb_scale
+                ttc[:,0][i] = abs(ttc[:,0][i])
                 
                 # d = disturb_scale * np.random.randn(1)[0]
                 # while d < disturb_n_threshold_min or d > disturb_n_threshold_max or d == ttc[i]:
@@ -293,9 +295,24 @@ def load_data(dataset):
         # channel.head(20)
         # channel_ano.head(50)
         ### DEBUG
-        plt.plot(disturbc[:1000], label='disturb')
-        plt.plot(np.array(ttc), label='ttc')
-        plt.plot(np.array(ttc) - np.array(tc), label='vari')
+        plt.figure(figsize=(12, 8))
+
+        # Plot disturb
+        plt.subplot(411)
+        plt.plot(disturbc, label='disturb', linewidth=2, alpha=0.7)
+        plt.legend()
+
+        # Plot ttc
+        plt.subplot(412)
+        plt.plot(np.array(ttc), label='ttc', linewidth=2, alpha=0.7)
+        plt.legend()
+
+        # Plot vari
+        plt.subplot(413)
+        plt.plot(np.array(ttc) - np.array(tc), label='vari', linewidth=2, alpha=0.7)
+        plt.legend()
+
+        plt.subplot(414)
         plt.plot(labelsc, label='labels')
         plt.legend()
         plt.show()

@@ -35,7 +35,7 @@ data = dd.iloc[:, 0].values[:2000]
 # data = np.sin(t)  # 生成正弦波信号
 data = dd.iloc[:, 1].values[:2000]
 t = np.linspace(0, 1, num=len(data))
-scaler = MinMaxScaler()
+scaler = StandardScaler() #MinMaxScaler()
 signal = scaler.fit_transform(data.reshape(-1, 1))
 
 # # 创建一个示例信号
