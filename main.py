@@ -16,31 +16,42 @@ from pprint import pprint
 import seaborn as sns
 # from beepy import beep
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def convert_to_windows(data, model):
-	windows = []; w_size = model.n_window
-	for i, g in enumerate(data): 
-		if i >= w_size: w = data[i-w_size:i]
-		else: w = torch.cat([data[0].repeat(w_size-i, 1), data[0:i]])
+	windows = []
+	w_size = model.n_window
+	for i, g in enumerate(data):
+		if i >= w_size:
+			w = data[i - w_size:i]
+		else:
+			w = torch.cat([data[0].repeat(w_size - i, 1), data[0:i]])
 		windows.append(w if 'TranAD' in args.model or 'Attention' in args.model else w.view(-1))
-	return torch.stack(windows)
+	return torch.stack(windows).to(device)
 
 def load_dataset(dataset):
-	folder = os.path.join(output_folder, dataset) # + "_classic") # TODO: don't use classic data, too many peaks, not good anomalies (same to normal data)
+	folder = os.path.join(output_folder, dataset)
 	if not os.path.exists(folder):
 		raise Exception('Processed Data not found.')
 	loader = []
 	for file in ['train', 'test', 'labels']:
-		if dataset == 'SMD': file = 'machine-1-1_' + file
-		if dataset == 'SMAP': file = 'P-1_' + file
-		if dataset == 'MSL': file = 'C-1_' + file
-		if dataset == 'UCR': file = '136_' + file
-		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
-		if dataset == 'addr1394': file = file
+		if dataset == 'SMD':
+			file = 'machine-1-1_' + file
+		if dataset == 'SMAP':
+			file = 'P-1_' + file
+		if dataset == 'MSL':
+			file = 'C-1_' + file
+		if dataset == 'UCR':
+			file = '136_' + file
+		if dataset == 'NAB':
+			file = 'ec2_request_latency_system_failure_' + file
+		if dataset == 'addr1394':
+			file = file
 		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
-	# loader = [i[:, debug:debug+1] for i in loader]
-	if args.less: loader[0] = cut_array(0.2, loader[0])
-	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
-	test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
+	if args.less:
+		loader[0] = cut_array(0.2, loader[0])
+	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0], pin_memory=True)
+	test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0], pin_memory=True)
 	labels = loader[2]
 	return train_loader, test_loader, labels
 
@@ -49,22 +60,22 @@ def save_model(model, optimizer, scheduler, epoch, accuracy_list):
 	os.makedirs(folder, exist_ok=True)
 	file_path = f'{folder}/model.ckpt'
 	torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict(),
-        'accuracy_list': accuracy_list}, file_path)
+		'epoch': epoch,
+		'model_state_dict': model.state_dict(),
+		'optimizer_state_dict': optimizer.state_dict(),
+		'scheduler_state_dict': scheduler.state_dict(),
+		'accuracy_list': accuracy_list}, file_path)
 
 def load_model(modelname, dims):
 	import src.models
 	model_class = getattr(src.models, modelname)
-	model = model_class(dims).double()
-	optimizer = torch.optim.AdamW(model.parameters() , lr=model.lr, weight_decay=1e-5)
+	model = model_class(dims).double().to(device)
+	optimizer = torch.optim.AdamW(model.parameters(), lr=model.lr, weight_decay=1e-5)
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 5, 0.9)
 	fname = f'checkpoints/{args.model}_{args.dataset}/model.ckpt'
 	if os.path.exists(fname) and (not args.retrain or args.test):
 		print(f"{color.GREEN}Loading pre-trained model: {model.name}{color.ENDC}")
-		checkpoint = torch.load(fname)
+		checkpoint = torch.load(fname, map_location=device)
 		model.load_state_dict(checkpoint['model_state_dict'])
 		optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 		scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -72,47 +83,53 @@ def load_model(modelname, dims):
 		accuracy_list = checkpoint['accuracy_list']
 	else:
 		print(f"{color.GREEN}Creating new model: {model.name}{color.ENDC}")
-		epoch = -1; accuracy_list = []
+		epoch = -1
+		accuracy_list = []
 	return model, optimizer, scheduler, epoch, accuracy_list
 
-def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
-	l = nn.MSELoss(reduction = 'mean' if training else 'none')
+def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
+	l = nn.MSELoss(reduction='mean' if training else 'none')
 	feats = dataO.shape[1]
 	if 'DAGMM' in model.name:
-		l = nn.MSELoss(reduction = 'none')
-		compute = ComputeLoss(model, 0.1, 0.005, 'cpu', model.n_gmm)
-		n = epoch + 1; w_size = model.n_window
-		l1s = []; l2s = []
+		l = nn.MSELoss(reduction='none')
+		compute = ComputeLoss(model, 0.1, 0.005, device, model.n_gmm)
+		n = epoch + 1
+		w_size = model.n_window
+		l1s = []
+		l2s = []
 		if training:
 			for d in data:
-				_, x_hat, z, gamma = model(d)
-				l1, l2 = l(x_hat, d), l(gamma, d)
-				l1s.append(torch.mean(l1).item()); l2s.append(torch.mean(l2).item())
+				_, x_hat, z, gamma = model(d.to(device))
+				l1, l2 = l(x_hat, d.to(device)), l(gamma, d.to(device))
+				l1s.append(torch.mean(l1).item())
+				l2s.append(torch.mean(l2).item())
 				loss = torch.mean(l1) + torch.mean(l2)
 				optimizer.zero_grad()
 				loss.backward()
 				optimizer.step()
 			scheduler.step()
 			tqdm.write(f'Epoch {epoch},\tL1 = {np.mean(l1s)},\tL2 = {np.mean(l2s)}')
-			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
+			return np.mean(l1s) + np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s = []
-			for d in data: 
-				_, x_hat, _, _ = model(d)
+			for d in data:
+				_, x_hat, _, _ = model(d.to(device))
 				ae1s.append(x_hat)
 			ae1s = torch.stack(ae1s)
-			y_pred = ae1s[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-			loss = l(ae1s, data)[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-			return loss.detach().numpy(), y_pred.detach().numpy()
+			y_pred = ae1s[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
+			loss = l(ae1s, data.to(device))[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
+			return loss.detach().cpu().numpy(), y_pred.detach().cpu().numpy()
 	if 'Attention' in model.name:
-		l = nn.MSELoss(reduction = 'none')
-		n = epoch + 1; w_size = model.n_window
-		l1s = []; res = []
+		l = nn.MSELoss(reduction='none')
+		n = epoch + 1
+		w_size = model.n_window
+		l1s = []
+		res = []
 		if training:
 			for d in data:
-				ae, ats = model(d)
+				ae, ats = model(d.to(device))
 				# res.append(torch.mean(ats, axis=0).view(-1))
-				l1 = l(ae, d)
+				l1 = l(ae, d.to(device))
 				l1s.append(torch.mean(l1).item())
 				loss = torch.mean(l1)
 				optimizer.zero_grad()
@@ -124,8 +141,8 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, y_pred = [], []
-			for d in data: 
-				ae1 = model(d)
+			for d in data:
+				ae1 = model(d.to(device))
 				y_pred.append(ae1[-1])
 				ae1s.append(ae1)
 			ae1s, y_pred = torch.stack(ae1s), torch.stack(y_pred)
@@ -295,6 +312,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True):
 			return loss.detach().numpy(), y_pred.detach().numpy()
 
 if __name__ == '__main__':
+	print("device:", device)
 	train_loader, test_loader, labels = load_dataset(args.dataset)
 	# labels = -labels + 1
 	if args.model in ['MERLIN']:
@@ -310,7 +328,7 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 5; e = epoch + 1; start = time() #epochs = 5 25#<args>
+		num_epochs = 25; e = epoch + 1; start = time() #epochs = 5 25#<args>
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler)
 			accuracy_list.append((lossT, lr))
