@@ -8,6 +8,7 @@ from src.folderconstants import *
 from shutil import copyfile
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
+from settings import *
 
 datasets = ['synthetic', 'SMD', 'SWaT', 'SMAP', 'MSL', 'WADI', 'MSDS', 'UCR', 'MBA', 'NAB','addr1394']
 
@@ -207,7 +208,7 @@ def load_data(dataset):
 
     elif dataset == 'addr1394':
         dataset_folder = 'data/addr1394'
-        features_num = 2 #<arg>
+        features_num = FEATURES_NUM #<arg>
         #~Read channel data (address)
         # 1394 protocal
         df_dst = pd.read_csv(os.path.join(dataset_folder,"channels_1394_DST.csv"))#目的地址（*）
@@ -220,118 +221,124 @@ def load_data(dataset):
         # channel = channel.astype(float)
         
         #~Normalization
-
+        range_n = RANGE_N #<arg>
         scaler = preprocessing.MinMaxScaler()  #preprocessing.StandardScaler()##!!
 
-        xc = channel.values[0:10000] #[0:8000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values #<arg>
+        xc = channel.values[:range_n] #[0:8000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values
         
+        #TODO: test linear/non-linear normalization
         xc_scaled = scaler.fit_transform(xc) #!!
-        ## DEBUG
-        print(xc_scaled.shape)
-        plt.plot(xc[:6000], label='xc')
-        plt.plot(xc_scaled[:6000], label='xc_s')
-        plt.legend()
-        plt.show()
-        ##
-        test_num = 1000 #<arg>
-        # split_ratio = 0.7 #0.7 #0.5 #<arg>
-        # xc_scaled = channel.values# !!
-        # tc = xc_scaled[int(len(xc) * split_ratio):]
-        # xc = xc_scaled[:int(len(xc) * split_ratio)]
-        tc = xc_scaled[-test_num:]
-        xc = xc_scaled[:-test_num]
-        ## DEBUG
-        # plt.plot(xc[0:500])
-        # plt.plot(tc[0:500])
-        # plt.show()
-        print("train shape:", xc.shape)
-        print("test shape:", tc.shape)
-        plt.plot(tc[:1000], label='tc')
-        # plt.plot(tc_scaled[:1000], label='tc_s')
-        plt.legend()
-        plt.show()
-        ##
+        xc_log2 = np.log2(xc + 1) #!!
+        xc_sin = np.sin(xc) #!!
 
-        #Label generatoin for tc
-        disturb_scale = 1.0 #255 #0.25 #<arg>
-        disturb_probability = 0.01 #0.05 0.02 #<arg> 0.01
-        disturb_n_threshold_min = 0.3 #0.2 <arg>
-        disturb_n_threshold_max = 1.0 #0.8 #<arg>
-        error_split_probablity = 0.5 #<arg>
-        # dd = 1
-        disturbc = []
-        labelsc = np.zeros_like(tc)
-        ttc = tc.copy()
-        np.random.seed(42) #<arg>
+        for name, xc_scaled in zip(['', '_log2', '_sin'], [xc_scaled, xc_log2, xc_sin]): #!!
+            if DEBUG:
+                print(xc_scaled.shape)
+                plt.plot(xc[:range_n], label='xc')
+                plt.plot(xc_scaled[:range_n], label='xc_s')
+                plt.legend()
+                plt.show()
+            ##
+            test_num = TEST_NUM#<arg>
+            # split_ratio = SPLIT_RATIO #0.7 #0.5 #<arg>
+            # xc_scaled = channel.values# !!
+            # tc = xc_scaled[int(len(xc) * split_ratio):]
+            # xc = xc_scaled[:int(len(xc) * split_ratio)]
+            tc = xc_scaled[-test_num:]
+            xc = xc_scaled[:-test_num]
+            if DEBUG:
+                # plt.plot(xc[0:500])
+                # plt.plot(tc[0:500])
+                # plt.show()
+                print("train shape:", xc.shape)
+                print("test shape:", tc.shape)
+                plt.plot(tc[:1000], label='tc')
+                # plt.plot(tc_scaled[:1000], label='tc_s')
+                plt.legend()
+                plt.show()
+            ##
 
-        for i,t in enumerate(tc):
-            if np.random.rand(1)[0] < disturb_probability:
-            # if np.random.randn(1)[0] > 2.1: # disturb_probability:
-                # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
-                # add disturb
-                d = disturb_scale * np.random.random(1)[0]
-                while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max or abs(d) == ttc[:,0][i]:
-                    d = disturb_scale * np.random.random(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
-                ttc[:,0][i] += d  #TODO: disturb_scale
-                ttc[:,0][i] = abs(ttc[:,0][i])
-                
-                # d = disturb_scale * np.random.randn(1)[0]
-                # while d < disturb_n_threshold_min or d > disturb_n_threshold_max or d == ttc[i]:
-                #     d = disturb_scale * np.random.randn(1)[0]
-                # ttc[i] = d
-                # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
-                # print(ttc[i])
-                labelsc[i,0] = 1.0 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
-                disturbc.append(d)
-                # else:
-                #     # swap error
-                #     temp = tc[i + 1]
-                #     tc[i + 1] = tc[i]
-                #     tc[i] = temp
-                #     labelsc.append(np.array([1.0]))
-            else:
-                #labelsc.append(np.array([0.0])) #0#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
-                disturbc.append(0.0)#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
+            #Label generatoin for tc
+            disturb_scale = DISTURB_SCALE #255 #0.25 #<arg>
+            disturb_probability = DISTURB_PROBABILITY #0.05 0.02 #<arg> 0.01
+            disturb_n_threshold_min = DISTURB_N_THRESHOLD_MIN #0.2 <arg>
+            disturb_n_threshold_max = DISTURB_N_THRESHOLD_MAX #0.8 #<arg>
+            error_split_probablity = ERROR_SPLIT_PROBABLITY #<arg>
+            # dd = 1
+            disturbc = []
+            labelsc = np.zeros_like(tc)
+            ttc = tc.copy()
+            np.random.seed(RANDOM_SEED) #<arg>
 
-        # print(labelsc[:200])
-        # channel = pd.DataFrame(xc)
-        # channel_ano = pd.DataFrame(tc)
+            for i,t in enumerate(tc):
+                if np.random.rand(1)[0] < disturb_probability:
+                # if np.random.randn(1)[0] > 2.1: # disturb_probability:
+                    # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
+                    # add disturb
+                    d = disturb_scale * np.random.random(1)[0]
+                    while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max or abs(d) == ttc[:,0][i]:
+                        d = disturb_scale * np.random.random(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
+                    ttc[:,0][i] += d  #TODO: disturb_scale
+                    ttc[:,0][i] = abs(ttc[:,0][i])
 
-        # print(channel.shape, channel_ano.shape)
-        # channel.head(20)
-        # channel_ano.head(50)
-        ### DEBUG
-        plt.figure(figsize=(12, 8))
+                    # d = disturb_scale * np.random.randn(1)[0]
+                    # while d < disturb_n_threshold_min or d > disturb_n_threshold_max or d == ttc[i]:
+                    #     d = disturb_scale * np.random.randn(1)[0]
+                    # ttc[i] = d
+                    # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
+                    # print(ttc[i])
+                    labelsc[i,0] = 1.0 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
+                    disturbc.append(d)
+                    # else:
+                    #     # swap error
+                    #     temp = tc[i + 1]
+                    #     tc[i + 1] = tc[i]
+                    #     tc[i] = temp
+                    #     labelsc.append(np.array([1.0]))
+                else:
+                    #labelsc.append(np.array([0.0])) #0#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
+                    disturbc.append(0.0)#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
 
-        # Plot disturb
-        plt.subplot(411)
-        plt.plot(disturbc, label='disturb', linewidth=2, alpha=0.7)
-        plt.legend()
+            # print(labelsc[:200])
+            # channel = pd.DataFrame(xc)
+            # channel_ano = pd.DataFrame(tc)
 
-        # Plot ttc
-        plt.subplot(412)
-        plt.plot(np.array(ttc), label='ttc', linewidth=2, alpha=0.7)
-        plt.legend()
+            # print(channel.shape, channel_ano.shape)
+            # channel.head(20)
+            # channel_ano.head(50)
+            if DEBUG:
+                plt.figure(figsize=(12, 8))
 
-        # Plot vari
-        plt.subplot(413)
-        plt.plot(np.array(ttc) - np.array(tc), label='vari', linewidth=2, alpha=0.7)
-        plt.legend()
+                # Plot disturb
+                plt.subplot(411)
+                plt.plot(disturbc, label='disturb', linewidth=2, alpha=0.7)
+                plt.legend()
 
-        plt.subplot(414)
-        plt.plot(labelsc, label='labels')
-        plt.legend()
-        plt.show()
-        ###
-        
-        #################################################
-        # train, min_a, max_a = normalize2(xc)
-        # test, _, _ = normalize2(tc, min_a, max_a)
-        train = np.array(xc).reshape((-1,features_num))#TODO：comment for test
-        test = np.array(ttc).reshape((-1,features_num))#TODO：comment for test
-        labels = np.array(labelsc, dtype=float).reshape((-1,features_num)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
-        for file in ['train', 'test', 'labels']:
-            np.save(os.path.join(folder, f'{file}.npy'), eval(file))
+                # Plot ttc
+                plt.subplot(412)
+                plt.plot(np.array(ttc), label='ttc', linewidth=2, alpha=0.7)
+                plt.legend()
+
+                # Plot vari
+                plt.subplot(413)
+                plt.plot(np.array(ttc) - np.array(tc), label='vari', linewidth=2, alpha=0.7)
+                plt.legend()
+
+                plt.subplot(414)
+                plt.plot(labelsc, label='labels')
+                plt.legend()
+                plt.show()
+            ###
+
+            #################################################
+            # train, min_a, max_a = normalize2(xc)
+            # test, _, _ = normalize2(tc, min_a, max_a)
+            train = np.array(xc).reshape((-1,features_num))#TODO：comment for test
+            test = np.array(ttc).reshape((-1,features_num))#TODO：comment for test
+            labels = np.array(labelsc, dtype=float).reshape((-1,features_num)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
+            for file in ['train', 'test', 'labels']:
+                np.save(os.path.join(folder, f'{file}.npy'), eval(file+name))
+
     else:
         raise Exception(f'Not Implemented. Check one of {datasets}')
 

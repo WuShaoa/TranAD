@@ -328,7 +328,7 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 25; e = epoch + 1; start = time() #epochs = 5 25#<args>
+		num_epochs = 50; e = epoch + 1; start = time() #epochs = 5 25#<args>
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler)
 			accuracy_list.append((lossT, lr))
@@ -357,7 +357,7 @@ if __name__ == '__main__':
 		plt.plot(loss, c='red', label='loss', alpha=0.8, linewidth=2)
 		plt.plot(labels, c='black', label='labels', linestyle='--', alpha=0.8, linewidth=1.5)
 		plt.title(f'{args.model} on {args.dataset}')
-		plt.fill_between(range(len(labels)), labels.squeeze(), alpha=0.2, color='black')
+		# plt.fill_between(range(len(labels)), labels.squeeze(), alpha=0.2, color='black')
 		plt.ylabel('Value')
 		plt.xlabel('Time')
 		plt.legend()
@@ -365,7 +365,7 @@ if __name__ == '__main__':
 		plt.subplot(2, 1, 2)
 		plt.plot(testO, c='green', label='y_test', alpha=0.8, linewidth=2)
 		plt.plot(yy, c='blue', label='y_pred', linestyle='-', alpha=0.8, linewidth=1.5)
-		plt.fill_between(range(len(yy)), yy.squeeze(), alpha=0.2, color='blue')
+		# plt.fill_between(range(len(yy)), yy.squeeze(), alpha=0.2, color='blue')
 		plt.xlabel('Time')
 		plt.ylabel('Value')
 		plt.legend()
