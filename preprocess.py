@@ -222,20 +222,23 @@ def load_data(dataset):
         
         #~Normalization
         range_n = RANGE_N #<arg>
-        scaler = preprocessing.MinMaxScaler()  #preprocessing.StandardScaler()##!!
-
         xc = channel.values[:range_n] #[0:8000] #[0:5000] #[0:3000] #[0:2000]  # [0:1500] #cut values
-        
-        #TODO: test linear/non-linear normalization
-        xc_scaled = scaler.fit_transform(xc) #!!
-        xc_log2 = np.log2(xc + 1) #!!
-        xc_sin = np.sin(xc) #!!
+        if DEBUG:
+            print("xc: ", xc.shape)
+        #TODO: test linear/non-linear scaler
+        xc_scaled = preprocessing.MinMaxScaler().fit_transform(xc) #!!
+        xc_log2 = np.log2(xc_scaled + 1) #!!
+        xc_sin = np.sin(xc_scaled * np.pi) #!!
+        xc_std = preprocessing.StandardScaler().fit_transform(xc) #!!
+        xc_std_scaled = preprocessing.MinMaxScaler().fit_transform(xc_std)
+        xc_std_log2 = np.log2([n if n.all() != 0 else n + EPS for n in xc_std_scaled])
+        xc_std_sin = np.sin(xc_std_scaled * np.pi)
 
-        for name, xc_scaled in zip(['', '_log2', '_sin'], [xc_scaled, xc_log2, xc_sin]): #!!
+        for name, xc_scaled in zip(SCALER_SUFFIX, map(eval, SCALED_DATA)):
             if DEBUG:
                 print(xc_scaled.shape)
-                plt.plot(xc[:range_n], label='xc')
-                plt.plot(xc_scaled[:range_n], label='xc_s')
+                plt.plot(xc[:DEBUG_PLOT_RANGE], label='xc'+name)
+                plt.plot(xc_scaled[:DEBUG_PLOT_RANGE], label='xc_scaled'+name)
                 plt.legend()
                 plt.show()
             ##
@@ -246,13 +249,14 @@ def load_data(dataset):
             # xc = xc_scaled[:int(len(xc) * split_ratio)]
             tc = xc_scaled[-test_num:]
             xc = xc_scaled[:-test_num]
+            print("train"+name+" shape:", xc.shape)
+            print("test"+name+" shape:", tc.shape)
             if DEBUG:
                 # plt.plot(xc[0:500])
                 # plt.plot(tc[0:500])
                 # plt.show()
-                print("train shape:", xc.shape)
-                print("test shape:", tc.shape)
-                plt.plot(tc[:1000], label='tc')
+
+                plt.plot(tc[:1000], label='tc'+name)
                 # plt.plot(tc_scaled[:1000], label='tc_s')
                 plt.legend()
                 plt.show()
@@ -316,7 +320,7 @@ def load_data(dataset):
 
                 # Plot ttc
                 plt.subplot(412)
-                plt.plot(np.array(ttc), label='ttc', linewidth=2, alpha=0.7)
+                plt.plot(np.array(ttc), label='ttc'+name, linewidth=2, alpha=0.7)
                 plt.legend()
 
                 # Plot vari
@@ -337,7 +341,7 @@ def load_data(dataset):
             test = np.array(ttc).reshape((-1,features_num))#TODO：comment for test
             labels = np.array(labelsc, dtype=float).reshape((-1,features_num)) #pd.read_json(file, lines=True)[['noti']][7000:12000] + 0
             for file in ['train', 'test', 'labels']:
-                np.save(os.path.join(folder, f'{file}.npy'), eval(file+name))
+                np.save(os.path.join(folder, f'{file+name}.npy'), eval(file))
 
     else:
         raise Exception(f'Not Implemented. Check one of {datasets}')

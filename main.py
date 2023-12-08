@@ -13,8 +13,9 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch.nn as nn
 from time import time
 from pprint import pprint
-import seaborn as sns
+from settings import *
 # from beepy import beep
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -195,7 +196,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 				ae1s.append(ae1); ae2s.append(ae2); ae2ae1s.append(ae2ae1)
 			ae1s, ae2s, ae2ae1s = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s)
 			y_pred = ae1s[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-			loss = 0.1 * l(ae1s, data) + 0.9 * l(ae2ae1s, data)#0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.8 * l(ae1s, data) + 0.2 * l(ae2ae1s, data)#0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
+			loss = USAD_ALPHA* l(ae1s, data) + USAD_BETA * l(ae2ae1s, data)#0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.8 * l(ae1s, data) + 0.2 * l(ae2ae1s, data)#0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
 			loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
 			return loss.detach().numpy(), y_pred.detach().numpy() # forward(test) return: loss, ypred
 	elif model.name in ['GDN', 'MTAD_GAT', 'MSCRED', 'CAE_M']:
@@ -328,7 +329,7 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 50; e = epoch + 1; start = time() #epochs = 5 25#<args>
+		num_epochs = EPOCHS; e = epoch + 1; start = time() #epochs = 5 25#<args>
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler)
 			accuracy_list.append((lossT, lr))
@@ -343,37 +344,37 @@ if __name__ == '__main__':
 		model.eval()
 		print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
 		loss, y_pred = backprop(0, model, testD, testO, optimizer, scheduler, training=False)
-		### DEBUG: plt
-		print("loss shape:", loss.shape)
-		print("y_pred shape:", y_pred.shape)
-		print("testO shape:", testO.shape)
-		print("train shape", trainO.shape)
-		print("labels shape:", labels.shape)
-		# sns.set_style("darkgrid")
-		# sns.set_palette("pastel")
+		if DEBUG: #plt
+			print("loss shape:", loss.shape)
+			print("y_pred shape:", y_pred.shape)
+			print("testO shape:", testO.shape)
+			print("train shape", trainO.shape)
+			print("labels shape:", labels.shape)
+			# sns.set_style("darkgrid")
+			# sns.set_palette("pastel")
 
-		plt.figure(figsize=(12, 6))
-		plt.subplot(2, 1, 1)
-		plt.plot(loss, c='red', label='loss', alpha=0.8, linewidth=2)
-		plt.plot(labels, c='black', label='labels', linestyle='--', alpha=0.8, linewidth=1.5)
-		plt.title(f'{args.model} on {args.dataset}')
-		# plt.fill_between(range(len(labels)), labels.squeeze(), alpha=0.2, color='black')
-		plt.ylabel('Value')
-		plt.xlabel('Time')
-		plt.legend()
-		yy = np.roll(y_pred, -1, 0)
-		plt.subplot(2, 1, 2)
-		plt.plot(testO, c='green', label='y_test', alpha=0.8, linewidth=2)
-		plt.plot(yy, c='blue', label='y_pred', linestyle='-', alpha=0.8, linewidth=1.5)
-		# plt.fill_between(range(len(yy)), yy.squeeze(), alpha=0.2, color='blue')
-		plt.xlabel('Time')
-		plt.ylabel('Value')
-		plt.legend()
+			plt.figure(figsize=(12, 6))
+			plt.subplot(2, 1, 1)
+			plt.plot(loss, c='red', label='loss', alpha=0.8, linewidth=2)
+			plt.plot(labels, c='black', label='labels', linestyle='--', alpha=0.8, linewidth=1.5)
+			plt.title(f'{args.model} on {args.dataset}')
+			# plt.fill_between(range(len(labels)), labels.squeeze(), alpha=0.2, color='black')
+			plt.ylabel('Value')
+			plt.xlabel('Time')
+			plt.legend()
+			yy = np.roll(y_pred, -1, 0)
+			plt.subplot(2, 1, 2)
+			plt.plot(testO, c='green', label='y_test', alpha=0.8, linewidth=2)
+			plt.plot(yy, c='blue', label='y_pred', linestyle='-', alpha=0.8, linewidth=1.5)
+			# plt.fill_between(range(len(yy)), yy.squeeze(), alpha=0.2, color='blue')
+			plt.xlabel('Time')
+			plt.ylabel('Value')
+			plt.legend()
 
-		plt.title(f'{args.model} on {args.dataset}')
+			plt.title(f'{args.model} on {args.dataset}')
 
-		plt.show()
-  		###
+			plt.show()
+  			###
   
 		### Plot curves
 		if not args.test:
