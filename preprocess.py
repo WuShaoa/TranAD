@@ -231,8 +231,11 @@ def load_data(dataset):
         xc_sin = np.sin(xc_scaled * np.pi) #!!
         xc_std = preprocessing.StandardScaler().fit_transform(xc) #!!
         xc_std_scaled = preprocessing.MinMaxScaler().fit_transform(xc_std)
-        xc_std_log2 = np.log2([n if n.all() != 0 else n + EPS for n in xc_std_scaled])
+        xc_std_log2 = np.log2(np.array([n if n.all() != 0 else n + EPS for n in xc_std_scaled]) + 1)
         xc_std_sin = np.sin(xc_std_scaled * np.pi)
+        xc_std_log2_sin = np.sin(xc_std_log2 * np.pi)
+        xc_l1 = preprocessing.normalize(xc, norm='l1') #!!
+        xc_l2 = preprocessing.normalize(xc, norm='l2') #!!
 
         for name, xc_scaled in zip(SCALER_SUFFIX, map(eval, SCALED_DATA)):
             if DEBUG:
