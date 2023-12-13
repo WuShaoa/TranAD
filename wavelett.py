@@ -6,7 +6,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
   
 dataset_folder = 'data/addr1394'
-
+['0','0.25','1','2','4','6','8','10','16','32','64','100','128','256']
 df_dst = pd.read_csv(os.path.join(dataset_folder,"channels_1394_DST.csv"))
 df_id = pd.read_csv(os.path.join(dataset_folder,"channels_1394_ID.csv"))   
 df_comb = pd.concat([df_dst, df_id], axis=1)

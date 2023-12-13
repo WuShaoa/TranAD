@@ -1,15 +1,17 @@
 # preprocess settings
-DEBUG = True
+DEBUG = False
 EPS = 0.00000001
 FEATURES_NUM = 2 #<arg>
 RANGE_N = -1 #<arg>
 DEBUG_PLOT_RANGE = 2000
+USE_RATIO=True
 TEST_NUM = 1000 #<arg>
-SPLIT_RATIO = 0.7 #0.7 #0.5 #<arg>
+SPLIT_RATIO = 0.8 #0.7 #0.5 #<arg>
 DISTURB_SCALE = 1.0 #255 #0.25 #<arg>
-DISTURB_PROBABILITY = 0.02 #0.01 #0.05 0.02 #<arg> 0.01
+DISTURB_PROBABILITY = 0.01 #0.01 #0.05 0.02 #<arg> 0.01
 DISTURB_N_THRESHOLD_MIN = 0.3 #0.2 <arg>
 DISTURB_N_THRESHOLD_MAX = 1.0 #0.8 #<arg>
+EXCHANGE_NUM = 100 #<arg>
 ERROR_SPLIT_PROBABLITY = 0.5 #<arg>
 RANDOM_SEED=42 #<arg>
 SCALER_SUFFIX = ['', '_log2', '_sin', '_std', '_std_scaled', '_std_log2', '_std_sin', '_std_log2_sin', '_l1', '_l2']

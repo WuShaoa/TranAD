@@ -237,6 +237,70 @@ def load_data(dataset):
         xc_l1 = preprocessing.normalize(xc, norm='l1') #!!
         xc_l2 = preprocessing.normalize(xc, norm='l2') #!!
 
+        # if DEBUG:
+        #     # Plotting
+        #     plt.figure(figsize=(12, 8))
+        #     plt.suptitle(f'Normalization Results - {name}', fontsize=16)
+
+        #     # Plot original data
+        #     plt.subplot(3, 4, 1)
+        #     plt.plot(xc[:DEBUG_PLOT_RANGE], label='Original')
+        #     plt.legend()
+
+        #     # Plot scaled data
+        #     plt.subplot(3, 4, 2)
+        #     plt.plot(xc_scaled[:DEBUG_PLOT_RANGE], label='Scaled')
+        #     plt.legend()
+
+        #     # Plot log2 scaled data
+        #     plt.subplot(3, 4, 3)
+        #     plt.plot(xc_log2[:DEBUG_PLOT_RANGE], label='Log2 Scaled')
+        #     plt.legend()
+
+        #     # Plot sin scaled data
+        #     plt.subplot(3, 4, 4)
+        #     plt.plot(xc_sin[:DEBUG_PLOT_RANGE], label='Sin Scaled')
+        #     plt.legend()
+
+        #     # Plot standard scaled data
+        #     plt.subplot(3, 4, 5)
+        #     plt.plot(xc_std[:DEBUG_PLOT_RANGE], label='Standard Scaled')
+        #     plt.legend()
+
+        #     # Plot standard scaled and min-max scaled data
+        #     plt.subplot(3, 4, 6)
+        #     plt.plot(xc_std_scaled[:DEBUG_PLOT_RANGE], label='Standard & Min-Max Scaled')
+        #     plt.legend()
+
+        #     # Plot standard scaled and log2 scaled data
+        #     plt.subplot(3, 4, 7)
+        #     plt.plot(xc_std_log2[:DEBUG_PLOT_RANGE], label='Standard & Log2 Scaled')
+        #     plt.legend()
+
+        #     # Plot standard scaled and sin scaled data
+        #     plt.subplot(3, 4, 8)
+        #     plt.plot(xc_std_sin[:DEBUG_PLOT_RANGE], label='Standard & Sin Scaled')
+        #     plt.legend()
+
+        #     # Plot standard scaled, log2 scaled, and sin scaled data
+        #     plt.subplot(3, 4, 9)
+        #     plt.plot(xc_std_log2_sin[:DEBUG_PLOT_RANGE], label='Standard, Log2, & Sin Scaled')
+        #     plt.legend()
+
+        #     # Plot L1 normalized data
+        #     plt.subplot(3, 4, 10)
+        #     plt.plot(xc_l1[:DEBUG_PLOT_RANGE], label='L1 Normalized')
+        #     plt.legend()
+
+        #     # Plot L2 normalized data
+        #     plt.subplot(3, 4, 11)
+        #     plt.plot(xc_l2[:DEBUG_PLOT_RANGE], label='L2 Normalized')
+        #     plt.legend()
+
+        #     plt.tight_layout()
+        #     plt.show()
+
+
         for name, xc_scaled in zip(SCALER_SUFFIX, map(eval, SCALED_DATA)):
             if DEBUG:
                 print(xc_scaled.shape)
@@ -245,13 +309,14 @@ def load_data(dataset):
                 plt.legend()
                 plt.show()
             ##
-            test_num = TEST_NUM#<arg>
-            # split_ratio = SPLIT_RATIO #0.7 #0.5 #<arg>
-            # xc_scaled = channel.values# !!
-            # tc = xc_scaled[int(len(xc) * split_ratio):]
-            # xc = xc_scaled[:int(len(xc) * split_ratio)]
-            tc = xc_scaled[-test_num:]
-            xc = xc_scaled[:-test_num]
+            if USE_RATIO is True:
+                split_ratio = SPLIT_RATIO #0.7 #0.5 #<arg>
+                tc = xc_scaled[int(len(xc_scaled) * split_ratio):]
+                xc = xc_scaled[:int(len(xc_scaled) * split_ratio)]
+            else:
+                test_num = TEST_NUM#<arg>
+                tc = xc_scaled[-test_num:]
+                xc = xc_scaled[:-test_num]
             print("train"+name+" shape:", xc.shape)
             print("test"+name+" shape:", tc.shape)
             if DEBUG:
@@ -277,11 +342,11 @@ def load_data(dataset):
             ttc = tc.copy()
             np.random.seed(RANDOM_SEED) #<arg>
 
-            for i,t in enumerate(tc):
+            for i, _ in enumerate(tc):
+                # abnormal: disturb
                 if np.random.rand(1)[0] < disturb_probability:
                 # if np.random.randn(1)[0] > 2.1: # disturb_probability:
                     # if np.random.rand(1)[0] < error_split_probablity or i == 0 or i == len(tc)-1:
-                    # add disturb
                     d = disturb_scale * np.random.random(1)[0]
                     while abs(d) < disturb_n_threshold_min or abs(d) > disturb_n_threshold_max or abs(d) == ttc[:,0][i]:
                         d = disturb_scale * np.random.random(1)[0] #disturb_scale * np.abs(np.random.randn(1)[0]) + 0.3 #(np.random.rand(1)[0] + 0.5) * 2 * disturb_scale
@@ -294,7 +359,7 @@ def load_data(dataset):
                     # ttc[i] = d
                     # labelsc.append(np.array([1.0, 0.0])) #1 # abnormal
                     # print(ttc[i])
-                    labelsc[i,0] = 1.0 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
+                    labelsc[i,0] = 1 #False #1 # abnormal [-TODO](+DONE:shift USAD and TrainAD output)：comment for test
                     disturbc.append(d)
                     # else:
                     #     # swap error
@@ -306,6 +371,17 @@ def load_data(dataset):
                     #labelsc.append(np.array([0.0])) #0#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
                     disturbc.append(0.0)#[-TODO](+DONE:shift USAD and TrainAD output)：comment for test
 
+            # abnormal: exchange
+            for i in range(EXCHANGE_NUM):
+                index1 = np.random.randint(0, len(ttc[:,0]))
+                index2 = np.random.randint(0, len(ttc[:,0]))
+                tmp = ttc[index1, 0]
+                ttc[index1, 0] = ttc[index2, 0]
+                ttc[index2, 0] = tmp
+                labelsc[index1, 0] = 1
+                labelsc[index2, 0] = 1
+                disturbc[index1] = ttc[index2, 0] - ttc[index1, 0]
+                disturbc[index2] = -disturbc[index1]
             # print(labelsc[:200])
             # channel = pd.DataFrame(xc)
             # channel_ano = pd.DataFrame(tc)
@@ -323,16 +399,17 @@ def load_data(dataset):
 
                 # Plot ttc
                 plt.subplot(412)
-                plt.plot(np.array(ttc), label='ttc'+name, linewidth=2, alpha=0.7)
+                plt.plot(np.array(tc)[:,0], label='DST_ori'+name)
+                plt.plot(np.array(ttc)[:,0], label='DST_dis'+name, linewidth=2, alpha=0.7)
                 plt.legend()
 
                 # Plot vari
                 plt.subplot(413)
-                plt.plot(np.array(ttc) - np.array(tc), label='vari', linewidth=2, alpha=0.7)
+                plt.plot(np.array(ttc)[:,0] - np.array(tc)[:,0], label='vari', linewidth=2, alpha=0.7)
                 plt.legend()
 
                 plt.subplot(414)
-                plt.plot(labelsc, label='labels')
+                plt.plot(np.array(labelsc)[:,0], label='labels')
                 plt.legend()
                 plt.show()
             ###
