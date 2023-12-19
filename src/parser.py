@@ -8,6 +8,7 @@ parser.add_argument('--dataset',
 					default='synthetic',
                     help="dataset from ['synthetic', 'SMD']")
 parser.add_argument('--model', 
+                    nargs='+',
 					metavar='-m', 
 					type=str, 
 					required=False,

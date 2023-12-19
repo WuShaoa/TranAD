@@ -27,7 +27,7 @@ def convert_to_windows(data, model):
 			w = data[i - w_size:i]
 		else:
 			w = torch.cat([data[0].repeat(w_size - i, 1), data[0:i]])
-		windows.append(w if 'TranAD' in args.model or 'Attention' in args.model else w.view(-1))
+		windows.append(w if any(m in args.model for m in ['TranAD', 'Attention', 'USAD_LSTM', 'USAD_BiLSTM', 'USAD_BiLSTM_VAE']) else w.view(-1))
 	return torch.stack(windows).to(device)
 
 def load_dataset(dataset):
@@ -47,7 +47,7 @@ def load_dataset(dataset):
 		if dataset == 'NAB':
 			file = 'ec2_request_latency_system_failure_' + file
 		if dataset == 'addr1394':
-			file = file
+			file = file + FILE_SUFFIX
 		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
 	if args.less:
 		loader[0] = cut_array(0.2, loader[0])
@@ -57,7 +57,7 @@ def load_dataset(dataset):
 	return train_loader, test_loader, labels
 
 def save_model(model, optimizer, scheduler, epoch, accuracy_list):
-	folder = f'checkpoints/{args.model}_{args.dataset}/'
+	folder = f'checkpoints/{args.model[0]}_{args.dataset}/' #TODO: path names for all models
 	os.makedirs(folder, exist_ok=True)
 	file_path = f'{folder}/model.ckpt'
 	torch.save({
@@ -70,10 +70,10 @@ def save_model(model, optimizer, scheduler, epoch, accuracy_list):
 def load_model(modelname, dims):
 	import src.models
 	model_class = getattr(src.models, modelname)
-	model = model_class(dims).double()
+	model = model_class(dims).double().to(device)
 	optimizer = torch.optim.AdamW(model.parameters(), lr=model.lr, weight_decay=1e-5)
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 5, 0.9)
-	fname = f'checkpoints/{args.model}_{args.dataset}/model.ckpt'
+	fname = f'checkpoints/{args.model[0]}_{args.dataset}/model.ckpt'#TODO: path names for all models
 	if os.path.exists(fname) and (not args.retrain or args.test):
 		print(f"{color.GREEN}Loading pre-trained model: {model.name}{color.ENDC}")
 		checkpoint = torch.load(fname, map_location=device)
@@ -86,12 +86,34 @@ def load_model(modelname, dims):
 		print(f"{color.GREEN}Creating new model: {model.name}{color.ENDC}")
 		epoch = -1
 		accuracy_list = []
-	return model.to(device), optimizer, scheduler, epoch, accuracy_list
+	return model, optimizer, scheduler, epoch, accuracy_list
 
 def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
+	"""
+	Perform backpropagation for training a model.
+
+	Args:
+		epoch (int): The current epoch number.
+		model: The model to be trained.
+		data: The input data.
+		dataO: The original data.
+		optimizer: The optimizer for updating model parameters.
+		scheduler: The learning rate scheduler.
+		training (bool, optional): Whether the model is in training mode. Defaults to True.
+
+	Returns:
+		tuple: A tuple containing the loss and the learning rate.
+
+	Raises:
+		None
+	"""
+	if DEBUG:
+		print("model.name: ", model.name)
 	l = nn.MSELoss(reduction='mean' if training else 'none')
 	feats = dataO.shape[1]
-	if 'DAGMM' in model.name:
+	data = data.to(device)
+	dataO = dataO.to(device)
+	if 'DAGMM' == model.name:
 		l = nn.MSELoss(reduction='none')
 		compute = ComputeLoss(model, 0.1, 0.005, device, model.n_gmm)
 		n = epoch + 1
@@ -120,7 +142,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 			y_pred = ae1s[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
 			loss = l(ae1s, data.to(device))[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
 			return loss.detach().cpu().numpy(), y_pred.detach().cpu().numpy()
-	if 'Attention' in model.name:
+	if 'Attention' == model.name:
 		l = nn.MSELoss(reduction='none')
 		n = epoch + 1
 		w_size = model.n_window
@@ -149,7 +171,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 			ae1s, y_pred = torch.stack(ae1s), torch.stack(y_pred)
 			loss = torch.mean(l(ae1s, data), axis=1)
 			return loss.detach().numpy(), y_pred.detach().numpy()
-	elif 'OmniAnomaly' in model.name:
+	elif 'OmniAnomaly' == model.name:
 		if training:
 			mses, klds = [], []
 			for i, d in enumerate(data):
@@ -172,15 +194,15 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 			y_pred = torch.stack(y_preds)
 			MSE = l(y_pred, data)
 			return MSE.detach().numpy(), y_pred.detach().numpy()
-	elif 'USAD' in model.name:
+	elif 'USAD' == model.name:
 		l = nn.MSELoss(reduction = 'none') #comment: [none reduction] keeps the shape of the 2nd power with no scale (mean) or sum (central moment).
 		n = epoch + 1; w_size = model.n_window
 		l1s, l2s = [], []
 		if training:
 			for d in data:
 				ae1s, ae2s, ae2ae1s = model(d.to(device))
-				l1 = (1 / n) * l(ae1s, d.to(device)) + (1 - 1/n) * l(ae2ae1s, d.to(device)) #comment: scaled here
-				l2 = (1 / n) * l(ae2s, d.to(device)) - (1 - 1/n) * l(ae2ae1s, d.to(device))
+				l1 = (1 / n) * l(ae1s, d) + (1 - 1/n) * l(ae2ae1s, d) #comment: scaled here
+				l2 = (1 / n) * l(ae2s, d) - (1 - 1/n) * l(ae2ae1s, d)
 				l1s.append(torch.mean(l1).item()); l2s.append(torch.mean(l2).item())
 				loss = torch.mean(l1 + l2)
 				optimizer.zero_grad()
@@ -199,6 +221,85 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 			loss = USAD_ALPHA* l(ae1s, data) + USAD_BETA * l(ae2ae1s, data)#0.6 * l(ae1s, data) + 0.4 * l(ae2ae1s, data)#0.8 * l(ae1s, data) + 0.2 * l(ae2ae1s, data)#0.4 * l(ae1s, data) + 0.6 * l(ae2ae1s, data) #0.1 0.9 #<arg>
 			loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
 			return loss.detach().numpy(), y_pred.detach().numpy() # forward(test) return: loss, ypred
+	elif 'USAD_BiLSTM_VAE' == model.name:
+		l = nn.MSELoss(reduction='none')
+		n = epoch + 1
+		w_size = model.n_window
+		l1s, l2s = [], []
+		if training:
+			for d in data:
+				if DEBUG:
+					print("d.shape:", d.shape)
+				ae1s, ae2s, ae2ae1s, mu, logvar = model(d)
+				l1 = (1 / n) * l(ae1s, d) + (1 - 1 / n) * l(ae2ae1s, d)
+				l2 = (1 / n) * l(ae2s, d) - (1 - 1 / n) * l(ae2ae1s, d)
+				l1s.append(torch.mean(l1).item())
+				l2s.append(torch.mean(l2).item())
+				if DEBUG:
+					print("l1.shape:", l1.shape)
+					print("l2.shape:", l2.shape)
+				loss = torch.mean(l1 + l2) + 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+				optimizer.zero_grad()
+				loss.backward()
+				optimizer.step()
+			scheduler.step()
+			tqdm.write(f'Epoch {epoch},\tL1 = {np.mean(l1s)},\tL2 = {np.mean(l2s)}')
+			return np.mean(l1s) + np.mean(l2s), optimizer.param_groups[0]['lr']
+		else:
+			ae1s, ae2s, ae2ae1s, mus, logvars = [], [], [], [], []
+			for d in data:
+				ae1, ae2, ae2ae1, mu, logvar = model(d)
+				ae1s.append(ae1)
+				ae2s.append(ae2)
+				ae2ae1s.append(ae2ae1)
+				mus.append(mu)
+				logvars.append(logvar)
+			ae1s, ae2s, ae2ae1s, mus, logvars = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s), torch.stack(mus), torch.stack(logvars)
+			if DEBUG:
+				print("--------------------testing-------------------")
+				print("data.shape:", data.shape)
+				print("ae1s.shape:", ae1s.shape)
+				print("ae2s.shape:", ae2s.shape)
+				print("ae2ae1s.shape:", ae2ae1s.shape)
+				print("mus.shape:", mus.shape)
+				print("logvars.shape:", logvars.shape)
+				print("----------------------------------------------")
+			y_pred = ae1s[:,-1,:].view(-1, model.n_feats)
+			'''
+			The design of the loss function in the provided code is specific to the 'USAD_BiLSTM_VAE' model. Let's break down the components of the loss function and understand why it is designed this way.
+
+			1. Mean Squared Error (MSE) Loss:
+			   - The code initializes the MSE loss function using `nn.MSELoss(reduction='none')`. This means that the loss is calculated element-wise without any reduction.
+			   - MSE loss measures the average squared difference between the predicted values and the target values. It is commonly used for regression tasks.
+			   - In this case, the MSE loss is used to calculate two separate losses: `l1` and `l2`.
+
+			2. Reconstruction Loss (l1 and l2):
+			   - The code calculates two types of reconstruction losses: `l1` and `l2`.
+			   - `l1` represents the reconstruction loss between the first autoencoder output (`ae1s`) and the input data (`d`).
+			   - `l2` represents the reconstruction loss between the second autoencoder output (`ae2s`) and the input data (`d`), excluding the contribution from the first autoencoder (`ae2ae1s`).
+			   - The weights `(1 / n)` and `(1 - 1 / n)` are used to balance the contribution of `l1` and `l2` in the overall loss calculation, where `n` represents the current epoch number.
+
+			3. Kullback-Leibler (KL) Divergence Loss:
+			   - The KL divergence loss is used to measure the difference between the learned latent space distribution and a predefined prior distribution.
+			   - In this case, the KL divergence loss is calculated based on the mean (`mu`) and log variance (`logvar`) of the latent space distribution.
+			   - The term `0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())` represents the KL divergence loss.
+
+			4. Overall Loss Calculation:
+			   - The overall loss is calculated as the sum of the reconstruction losses (`l1` and `l2`) and the KL divergence loss.
+			   - The code then takes the mean of the overall loss using `torch.mean()`.
+
+			The design of this loss function aims to optimize the 'USAD_BiLSTM_VAE' model by minimizing the reconstruction errors (`l1` and `l2`) and aligning the learned latent space distribution with the predefined prior distribution (KL divergence loss). By combining these components, the model can learn to reconstruct the input data accurately and generate meaningful latent representations.
+
+			It's important to note that the specific design choices for the loss function may vary depending on the requirements of the model and the nature of the data being used.
+			'''
+			loss = USAD_BLV_ALPHA * l(ae1s, data) +  USAD_BLV_BETA * l(ae2ae1s, data) # + 0.5 * torch.sum(1 + logvars - mus.pow(2) - logvars.exp())
+			loss = loss[:,-1,:].view(-1, feats)
+			if DEBUG:
+				print("loss.shape:", loss.shape)
+				print("----------------------------------------------")
+			# loss = loss[:, model.n_feats * model.n_window:].view(-1, model.n_feats)
+			return loss.detach().numpy(), y_pred.detach().numpy()
+		
 	elif model.name in ['GDN', 'MTAD_GAT', 'MSCRED', 'CAE_M']:
 		l = nn.MSELoss(reduction = 'none')
 		n = epoch + 1; w_size = model.n_window
@@ -229,7 +330,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 			loss = l(xs, data)
 			loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
 			return loss.detach().numpy(), y_pred.detach().numpy()
-	elif 'GAN' in model.name:
+	elif 'GAN' == model.name:
 		l = nn.MSELoss(reduction = 'none')
 		bcel = nn.BCELoss(reduction = 'mean')
 		msel = nn.MSELoss(reduction = 'mean')
@@ -268,7 +369,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 			loss = l(outputs, data)
 			loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
 			return loss.detach().numpy(), y_pred.detach().numpy()
-	elif 'TranAD' in model.name:
+	elif 'TranAD' == model.name:
 		l = nn.MSELoss(reduction = 'none')
 		data_x = torch.DoubleTensor(data); dataset = TensorDataset(data_x, data_x)
 		bs = model.batch if training else len(data)
@@ -318,13 +419,16 @@ if __name__ == '__main__':
 	# labels = -labels + 1
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
-	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1]) ##DONE:ERROR HERE; fixed: label not reshaped (-1,1)
+	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model[0], labels.shape[1]) ##DONE:ERROR HERE; fixed: label not reshaped (-1,1)
 
 	## Prepare data
 	trainD, testD = next(iter(train_loader)), next(iter(test_loader))
 	trainO, testO = trainD, testD
-	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN'] or 'TranAD' in model.name: 
+	if model.name in ['Attention', 'DAGMM', 'USAD', 'USAD_LSTM', 'USAD_BiLSTM','USAD_BiLSTM_VAE', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN'] or 'TranAD' in model.name: 
 		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
+		print("Converted to windows:")
+		print("trainD shape:", trainD.shape)
+		print("testD shape:", testD.shape)
 
 	### Training phase
 	if not args.test:

@@ -9,6 +9,7 @@ from torch.nn import TransformerEncoder
 from torch.nn import TransformerDecoder
 from src.dlutils import *
 from src.constants import *
+from settings import *
 torch.manual_seed(1)
 
 ## Separate LSTM for each variable
@@ -197,16 +198,16 @@ class USAD(nn.Module):
 		ae2ae1 = self.decoder2(self.encoder(ae1))
 		return ae1.view(-1), ae2.view(-1), ae2ae1.view(-1)
 	
-## USAD_LSTM Model
-class USAD_LSTM(nn.Module):
+## USAD with Embeddings Model (TODO:)
+class USAD(nn.Module):
 	def __init__(self, feats):
-		super(USAD_LSTM, self).__init__()
-		self.name = 'USAD_LSTM'
+		super(USAD, self).__init__()
+		self.name = 'USAD'
 		self.lr = 0.0001
 		self.n_feats = feats
 		self.n_hidden = 16
 		self.n_latent = 5
-		self.n_window = 34  # USAD w_size =16, 5
+		self.n_window = 34 # USAD w_size =16, 5
 		self.n = self.n_feats * self.n_window
 		self.encoder = nn.Sequential(
 			nn.Flatten(),
@@ -214,30 +215,195 @@ class USAD_LSTM(nn.Module):
 			nn.Linear(self.n_hidden, self.n_hidden), nn.ReLU(True),
 			nn.Linear(self.n_hidden, self.n_latent), nn.ReLU(True),
 		)
-		self.lstm = nn.LSTM(self.n_latent, self.n_hidden, batch_first=True)
 		self.decoder1 = nn.Sequential(
+			nn.Linear(self.n_latent,self.n_hidden), nn.ReLU(True),
 			nn.Linear(self.n_hidden, self.n_hidden), nn.ReLU(True),
 			nn.Linear(self.n_hidden, self.n), nn.Sigmoid(),
 		)
 		self.decoder2 = nn.Sequential(
+			nn.Linear(self.n_latent,self.n_hidden), nn.ReLU(True),
 			nn.Linear(self.n_hidden, self.n_hidden), nn.ReLU(True),
 			nn.Linear(self.n_hidden, self.n), nn.Sigmoid(),
 		)
 
 	def forward(self, g):
 		## Encode
-		# g (Batch, Length_window, Embedding)
-		z = self.encoder(g.view(1, -1))
-		z = z.view(1, 1, -1)
-		## LSTM
-		lstm_out, _ = self.lstm(z)
-		lstm_out = lstm_out.view(-1, self.n_hidden)
+		z = self.encoder(g.view(1,-1))
 		## Decoders (Phase 1)
-		ae1 = self.decoder1(lstm_out)
-		ae2 = self.decoder2(lstm_out)
+		ae1 = self.decoder1(z)
+		ae2 = self.decoder2(z)
 		## Encode-Decode (Phase 2)
 		ae2ae1 = self.decoder2(self.encoder(ae1))
 		return ae1.view(-1), ae2.view(-1), ae2ae1.view(-1)
+	
+## USAD_LSTM (New Model()
+class USAD_LSTM(nn.Module):
+	def __init__(self, feats):
+		super(USAD_LSTM, self).__init__()
+		self.name = 'USAD'
+		self.lr = 0.0001
+		self.n_feats = feats
+		self.n_hidden = 32
+		self.n_latent = 16
+		self.n_window = 34 # USAD w_size =16, 5
+		self.n = self.n_feats * self.n_window
+		self.encoder = nn.LSTM(self.n, self.n_hidden, batch_first=True)
+		self.decoder1 = nn.LSTM(self.n_hidden, self.n, batch_first=True)
+		self.decoder2 = nn.LSTM(self.n_hidden, self.n, batch_first=True)
+
+	def forward(self, g):
+		## Encode
+		_, (h_n, _) = self.encoder(g.view(1, self.n_window, self.n_feats))
+		z = h_n.view(1, -1)
+		## Decoders (Phase 1)
+		_, (h_n_dec1, _) = self.decoder1(z.view(1, 1, -1))
+		ae1 = h_n_dec1.view(-1, self.n)
+		_, (h_n_dec2, _) = self.decoder2(z.view(1, 1, -1))
+		ae2 = h_n_dec2.view(-1, self.n)
+		## Encode-Decode (Phase 2)
+		_, (h_n_enc, _) = self.encoder(ae1.view(1, self.n, self.n_hidden))
+		ae2ae1, _ = self.decoder2(h_n_enc.view(1, 1, -1))
+		ae2ae1 = ae2ae1.view(-1, self.n)
+		return ae1.view(-1), ae2.view(-1), ae2ae1.view(-1)
+
+##make this model more sophiscated and reasonable as a good paper's realization of unsupervised sequential anomaly detection modelAdd attention mechanism: Incorporate an attention mechanism to allow the model to focus on relevant parts of the input sequence while encoding and decoding.
+'''
+Use bidirectional LSTM: Replace the unidirectional LSTM with a bidirectional LSTM to capture both past and future context information.
+
+Add residual connections: Introduce residual connections between the encoder and decoder layers to facilitate the flow of information and improve gradient propagation.
+
+Include variational autoencoder (VAE) components: Extend the model to include VAE components, such as a latent space regularization term and a reconstruction loss based on the VAE framework.
+
+Implement a self-attention mechanism: Introduce a self-attention mechanism to capture long-range dependencies and improve the model's ability to detect anomalies.
+
+Incorporate a temporal attention mechanism: Implement a temporal attention mechanism to weigh the importance of different time steps in the input sequence.
+
+Utilize a more advanced architecture: Consider using more advanced architectures, such as Transformer-based models, which have shown promising results in sequential anomaly detection tasks.
+
+Remember to carefully review and adapt these suggestions based on the specific requirements and constraints of your project.
+'''
+## USAD_BiLSTM New Model
+class USAD_BiLSTM(nn.Module):
+	def __init__(self, feats):
+		super(USAD_BiLSTM, self).__init__()
+		self.name = 'USAD_BiLSTM'
+		self.lr = 0.0001
+		self.n_feats = feats
+		self.n_hidden = 32
+		self.n_latent = 16
+		self.n_window = 34 # USAD w_size =16, 5
+		self.n = self.n_feats * self.n_window
+		self.encoder = nn.LSTM(self.n, self.n_hidden, batch_first=True, bidirectional=True)  # Use bidirectional LSTM
+		self.decoder1 = nn.LSTM(self.n_hidden * 2, self.n, batch_first=True)  # Update input size for decoder1
+		self.decoder2 = nn.LSTM(self.n_hidden * 2, self.n, batch_first=True)  # Update input size for decoder2
+
+	def forward(self, g):
+		## Encode
+		_, (h_n, _) = self.encoder(g.view(1, self.n_window, self.n_feats))
+		z = h_n.view(1, -1)
+		## Decoders (Phase 1)
+		_, (h_n_dec1, _) = self.decoder1(z.view(1, 1, -1))
+		ae1 = h_n_dec1.view(-1, self.n)
+		_, (h_n_dec2, _) = self.decoder2(z.view(1, 1, -1))
+		ae2 = h_n_dec2.view(-1, self.n)
+		## Encode-Decode (Phase 2)
+		_, (h_n_enc, _) = self.encoder(ae1.view(1, self.n, self.n_hidden * 2))  # Update input size for encoder
+		ae2ae1, _ = self.decoder2(h_n_enc.view(1, 1, -1))
+		ae2ae1 = ae2ae1.view(-1, self.n)
+		return ae1.view(-1), ae2.view(-1), ae2ae1.view(-1)
+
+## USAD_BiLSTM New Model with VAE components
+class USAD_BiLSTM_VAE(nn.Module):
+	def __init__(self, feats):
+		super(USAD_BiLSTM_VAE, self).__init__()
+		self.name = 'USAD_BiLSTM_VAE'
+		self.lr = 0.01 #0.0001
+		self.n_feats = feats # 2
+		self.n_hidden = 32
+		self.n_latent = 16
+		self.n_window = 32 # USAD w_size =16, 5
+		self.n = self.n_feats * self.n_window #=68
+		if DEBUG:
+			print("n_feats: ", self.n_feats)
+			print("n_hidden: ", self.n_hidden)
+			print("n_latent: ", self.n_latent)
+			print("n_window: ", self.n_window)
+			print("n: ", self.n)
+		self.encoder = nn.LSTM(self.n_feats, self.n_hidden, batch_first=True, bidirectional=True)  # Use bidirectional LSTM #bi-directional -> self.n_hidden * 2
+		self.decoder1 = nn.LSTM(self.n_latent, self.n_hidden, proj_size=2, batch_first=True)  # Update input size for decoder1
+		self.decoder2 = nn.LSTM(self.n_latent, self.n_hidden, proj_size=2, batch_first=True)  # Update input size for decoder2
+		self.fc_mu = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),  # VAE component: batch normalization layer
+								   nn.Linear(self.n_hidden * 2, self.n_latent),  # VAE component: linear layer for mean
+								   nn.GELU())
+		self.fc_logvar = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
+								   nn.Linear(self.n_hidden * 2, self.n_latent),  # VAE component: linear layer for log variance
+								   nn.GELU())
+		self.map_h_dec2 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
+								   nn.Linear(self.n_hidden * 2, self.n_feats),  # VAE component: linear layer for mapping h_dec2
+								   nn.GELU())
+		self.map_c_dec2 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
+								   nn.Linear(self.n_hidden * 2, self.n_hidden),  # VAE component: linear layer for mapping h_dec2
+						   		   nn.GELU())
+		self.map_h_ae2ae1 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
+								   nn.Linear(self.n_hidden * 2, self.n_feats),  # VAE component: linear layer for mapping h_dec2
+								   nn.GELU())
+		self.map_c_ae2ae1 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
+								   nn.Linear(self.n_hidden * 2, self.n_hidden),  # VAE component: linear layer for mapping h_dec2
+						   		   nn.GELU())
+	def reparameterize(self, mu, logvar):
+		std = torch.exp(0.5 * logvar)
+		eps = torch.randn_like(std)
+		if DEBUG:
+			print("mu-shape:", mu.shape)
+			print("std-shape:", std.shape)
+		z = mu + eps * std
+		return z
+
+	def forward(self, g):
+		## Encode
+		out_n, (h_n, c_n) = self.encoder(g.view(-1, self.n_window, self.n_feats))
+		z = out_n #.view(1, -1)  # Shape: (1, n_hidden*2)
+		if DEBUG:
+			print("g-shape:", g.shape)
+			print("z-shape:", z.shape)
+			print("h_n-shape:", h_n.shape)
+			print("c_n-shape:", np.array([c.detach().numpy() for c in c_n]).shape)
+		## VAE components
+		mu = self.fc_mu(z)  # Shape: (1, n_latent)
+		logvar = self.fc_logvar(z)  # Shape: (1, n_latent)
+		z_latent = self.reparameterize(mu, logvar)  # Shape: (1, n_latent)
+		## Decoders (Phase 1)
+		if DEBUG:
+			print("Decoder 1 input shape:", z_latent.shape)
+		o_dec1, (h_n_dec1, c_n_dec1) = self.decoder1(z_latent) # to re-build the input, rebuild based on 0 init lantents
+		ae1 = o_dec1 #torch.concat((c_n_dec1[0],c_n_dec1[1]),axis=-1)#.view(-1, self.n_hidden * 2)  # Shape: (n_hidden*2,)
+		## Decoders (Phase 2)
+		if DEBUG:
+			print("Decoder 2 input shape:", z_latent.shape)
+		o_dec2, (h_n_dec2, c_n_dec2) = self.decoder2(z_latent, 
+											   (self.map_h_dec2(torch.concat((h_n[0],h_n[1]),axis=-1).unsqueeze(0)), 
+			   									self.map_c_dec2(torch.concat((c_n[0],c_n[1]),axis=-1).unsqueeze(0))))
+		ae2 = o_dec2 #torch.concat((c_n_dec2[0],c_n_dec2[1]),axis=-1)#.view(-1, self.n_hidden * 2)  # Shape: (n_hidden*2,)
+		## Encode-Decode (Phase 2)
+		if DEBUG:
+			print("Encoder input shape:", ae1.shape)
+		o_enc_ae1, (h_n_enc, c_n_enc) = self.encoder(ae1, (h_n, c_n))#(h_n_dec2, c_n_dec2))
+										    # (torch.concat((h_n_dec2[0],h_n_dec2[1]),axis=-1).unsqueeze(0), 
+			  								# torch.concat((c_n_dec2[0],c_n_dec2[1]),axis=-1).unsqueeze(0)))#ae1.view(1, self.n_hidden * 2, self.n_hidden * 2), (h_n, c_n))  # Update input size for encoder
+		mu_ae1 = self.fc_mu(o_enc_ae1)  # Shape: (1, n_latent)
+		logvar_ae1 = self.fc_logvar(o_enc_ae1)  # Shape: (1, n_latent)
+		z_latent_ae1 = self.reparameterize(mu_ae1, logvar_ae1)  # Shape: (1, n_latent)
+		
+		#c_n_enc_concat =  torch.concat((c_n_enc[0], c_n_enc[1]),axis=-1)
+		ae2ae1, _ = self.decoder2(z_latent_ae1, # to distinguish the rebuild and the original
+							(self.map_h_ae2ae1(torch.concat((h_n_enc[0],h_n_enc[1]),axis=-1).unsqueeze(0)), 
+							 self.map_c_ae2ae1(torch.concat((c_n_enc[0],c_n_enc[1]),axis=-1).unsqueeze(0)))) #h_n_enc, (h_n_dec2, c_n_dec2))
+		if DEBUG:
+			print("ae1 shape:", ae1.shape)
+			print("ae2 shape:", ae2.shape)
+			print("ae2ae1 shape:", ae2ae1.shape)
+
+		return ae1.squeeze(0), ae2.squeeze(0), ae2ae1.squeeze(0), mu, logvar
 
 ## MSCRED Model (AAAI 19)
 class MSCRED(nn.Module):
