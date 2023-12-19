@@ -51,8 +51,8 @@ def load_dataset(dataset):
 		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
 	if args.less:
 		loader[0] = cut_array(0.2, loader[0])
-	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0], pin_memory=True)
-	test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0], pin_memory=True)
+	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])#, pin_memory=True)
+	test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])#, pin_memory=True)
 	labels = loader[2]
 	return train_loader, test_loader, labels
 
@@ -78,7 +78,7 @@ def load_model(modelname, dims):
 		print(f"{color.GREEN}Loading pre-trained model: {model.name}{color.ENDC}")
 		checkpoint = torch.load(fname, map_location=device)
 		model.load_state_dict(checkpoint['model_state_dict'])
-		optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+		optimizer.load_state_dict(checkpoint['optimizer_state_dict'], load)
 		scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 		epoch = checkpoint['epoch']
 		accuracy_list = checkpoint['accuracy_list']
@@ -227,22 +227,24 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 		w_size = model.n_window
 		l1s, l2s = [], []
 		if training:
-			for d in data:
-				if DEBUG:
-					print("d.shape:", d.shape)
-				ae1s, ae2s, ae2ae1s, mu, logvar = model(d)
-				l1 = (1 / n) * l(ae1s, d) + (1 - 1 / n) * l(ae2ae1s, d)
-				l2 = (1 / n) * l(ae2s, d) - (1 - 1 / n) * l(ae2ae1s, d)
-				l1s.append(torch.mean(l1).item())
-				l2s.append(torch.mean(l2).item())
-				if DEBUG:
-					print("l1.shape:", l1.shape)
-					print("l2.shape:", l2.shape)
-				loss = torch.mean(l1 + l2) + 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-				optimizer.zero_grad()
-				loss.backward()
-				optimizer.step()
-			scheduler.step()
+			d = data #TODO:batches here!
+			if DEBUG:
+				print("d.shape:", d.shape)
+			ae1s, ae2s, ae2ae1s, mu, logvar = model(d)
+			l1 = (1 / n) * l(ae1s, d) + (1 - 1 / n) * l(ae2ae1s, d)
+			l2 = (1 / n) * l(ae2s, d) - (1 - 1 / n) * l(ae2ae1s, d)
+			l1s.append(torch.mean(l1).item())
+			l2s.append(torch.mean(l2).item())
+			if DEBUG:
+				print("l1.shape:", l1.shape)
+				print("l2.shape:", l2.shape)
+			loss = 0.5 * torch.mean(l1 + l2) + 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+			optimizer.zero_grad()
+			torch.mean(l1).backward(retain_graph=True)
+			torch.mean(l2).backward(retain_graph=True)
+			loss.backward()
+			optimizer.step()
+			# scheduler.step()
 			tqdm.write(f'Epoch {epoch},\tL1 = {np.mean(l1s)},\tL2 = {np.mean(l2s)}')
 			return np.mean(l1s) + np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
@@ -420,12 +422,14 @@ if __name__ == '__main__':
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model[0], labels.shape[1]) ##DONE:ERROR HERE; fixed: label not reshaped (-1,1)
-
+	model = model.to(device)
+	print(model)
 	## Prepare data
 	trainD, testD = next(iter(train_loader)), next(iter(test_loader))
 	trainO, testO = trainD, testD
 	if model.name in ['Attention', 'DAGMM', 'USAD', 'USAD_LSTM', 'USAD_BiLSTM','USAD_BiLSTM_VAE', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN'] or 'TranAD' in model.name: 
 		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
+		trainD, testD = trainD.to(device), testD.to(device)
 		print("Converted to windows:")
 		print("trainD shape:", trainD.shape)
 		print("testD shape:", testD.shape)

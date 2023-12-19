@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.nn.init as init
 import pickle
 import dgl
 from dgl.nn import GATConv
@@ -190,7 +191,7 @@ class USAD(nn.Module):
 
 	def forward(self, g):
 		## Encode
-		z = self.encoder(g.view(1,-1))
+		z = self.encoder(g)#.view(1,-1))
 		## Decoders (Phase 1)
 		ae1 = self.decoder1(z)
 		ae2 = self.decoder2(z)
@@ -199,10 +200,10 @@ class USAD(nn.Module):
 		return ae1.view(-1), ae2.view(-1), ae2ae1.view(-1)
 	
 ## USAD with Embeddings Model (TODO:)
-class USAD(nn.Module):
+class USAD_EMB(nn.Module):
 	def __init__(self, feats):
 		super(USAD, self).__init__()
-		self.name = 'USAD'
+		self.name = 'USAD_EMB'
 		self.lr = 0.0001
 		self.n_feats = feats
 		self.n_hidden = 16
@@ -240,7 +241,7 @@ class USAD(nn.Module):
 class USAD_LSTM(nn.Module):
 	def __init__(self, feats):
 		super(USAD_LSTM, self).__init__()
-		self.name = 'USAD'
+		self.name = 'USAD_LSTM'
 		self.lr = 0.0001
 		self.n_feats = feats
 		self.n_hidden = 32
@@ -313,6 +314,12 @@ class USAD_BiLSTM(nn.Module):
 		return ae1.view(-1), ae2.view(-1), ae2ae1.view(-1)
 
 ## USAD_BiLSTM New Model with VAE components
+def init_weights(m):
+	if isinstance(m, nn.Linear):
+		init.normal_(m.weight, mean=0, std=0.01)
+		if m.bias is not None:
+			init.constant_(m.bias, 0)
+
 class USAD_BiLSTM_VAE(nn.Module):
 	def __init__(self, feats):
 		super(USAD_BiLSTM_VAE, self).__init__()
@@ -321,88 +328,90 @@ class USAD_BiLSTM_VAE(nn.Module):
 		self.n_feats = feats # 2
 		self.n_hidden = 32
 		self.n_latent = 16
-		self.n_window = 32 # USAD w_size =16, 5
+		self.n_layers = 8
+		self.n_window = 12 # USAD w_size =16, 5
 		self.n = self.n_feats * self.n_window #=68
 		if DEBUG:
-			print("n_feats: ", self.n_feats)
-			print("n_hidden: ", self.n_hidden)
-			print("n_latent: ", self.n_latent)
-			print("n_window: ", self.n_window)
-			print("n: ", self.n)
-		self.encoder = nn.LSTM(self.n_feats, self.n_hidden, batch_first=True, bidirectional=True)  # Use bidirectional LSTM #bi-directional -> self.n_hidden * 2
-		self.decoder1 = nn.LSTM(self.n_latent, self.n_hidden, proj_size=2, batch_first=True)  # Update input size for decoder1
-		self.decoder2 = nn.LSTM(self.n_latent, self.n_hidden, proj_size=2, batch_first=True)  # Update input size for decoder2
-		self.fc_mu = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),  # VAE component: batch normalization layer
-								   nn.Linear(self.n_hidden * 2, self.n_latent),  # VAE component: linear layer for mean
+			print(__file__ + ":n_feats: ", self.n_feats)
+			print(__file__ + ":n_hidden: ", self.n_hidden)
+			print(__file__ + ":n_latent: ", self.n_latent)
+			print(__file__ + ":n_window: ", self.n_window)
+			print(__file__ + ":n: ", self.n)
+		self.encoder = nn.LSTM(self.n_feats, self.n_latent, num_layers=self.n_layers, batch_first=True, bidirectional=True)  # Use bidirectional LSTM #bi-directional -> self.n_hidden * 2
+		self.decoder1 = nn.LSTM(self.n_latent * 2, self.n_hidden, num_layers=self.n_layers, proj_size=2, batch_first=True)  # Update input size for decoder1
+		self.decoder2 = nn.LSTM(self.n_latent * 2, self.n_hidden, num_layers=self.n_layers, proj_size=2, batch_first=True)  # Update input size for decoder2
+		self.fc_mu = nn.Sequential(nn.LayerNorm(self.n_latent * 2),  # VAE component: batch normalization layer
+								   nn.Linear(self.n_latent * 2, self.n_latent * 2),)  # VAE component: linear layer for mean)
+		self.fc_logvar = nn.Sequential(nn.LayerNorm(self.n_latent * 2),
+								   nn.Linear(self.n_latent * 2, self.n_latent * 2),  # VAE component: linear layer for log variance
 								   nn.GELU())
-		self.fc_logvar = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
-								   nn.Linear(self.n_hidden * 2, self.n_latent),  # VAE component: linear layer for log variance
+		self.map_h_dec2 = nn.Sequential(nn.LayerNorm(self.n_latent * 2),
+								   nn.Linear(self.n_latent * 2, self.n_feats),  # VAE component: linear layer for mapping h_dec2
 								   nn.GELU())
-		self.map_h_dec2 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
-								   nn.Linear(self.n_hidden * 2, self.n_feats),  # VAE component: linear layer for mapping h_dec2
+		self.map_c_dec2 = nn.Sequential(nn.LayerNorm(self.n_latent * 2),
+								   nn.Linear(self.n_latent * 2, self.n_hidden),  # VAE component: linear layer for mapping h_dec2
 								   nn.GELU())
-		self.map_c_dec2 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
-								   nn.Linear(self.n_hidden * 2, self.n_hidden),  # VAE component: linear layer for mapping h_dec2
-						   		   nn.GELU())
-		self.map_h_ae2ae1 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
-								   nn.Linear(self.n_hidden * 2, self.n_feats),  # VAE component: linear layer for mapping h_dec2
+		self.map_h_ae2ae1 = nn.Sequential(nn.LayerNorm(self.n_latent * 2),
+								   nn.Linear(self.n_latent * 2, self.n_feats),  # VAE component: linear layer for mapping h_dec2
 								   nn.GELU())
-		self.map_c_ae2ae1 = nn.Sequential(nn.LayerNorm(self.n_hidden * 2),
-								   nn.Linear(self.n_hidden * 2, self.n_hidden),  # VAE component: linear layer for mapping h_dec2
-						   		   nn.GELU())
+		self.map_c_ae2ae1 = nn.Sequential(nn.LayerNorm(self.n_latent * 2),
+								   nn.Linear(self.n_latent * 2, self.n_hidden),  # VAE component: linear layer for mapping h_dec2
+								   nn.GELU())
+		self.apply(init_weights)
 	def reparameterize(self, mu, logvar):
 		std = torch.exp(0.5 * logvar)
 		eps = torch.randn_like(std)
 		if DEBUG:
-			print("mu-shape:", mu.shape)
-			print("std-shape:", std.shape)
+			print(__file__ + ":mu-shape:", mu.shape)
+			print(__file__ + ":std-shape:", std.shape)
 		z = mu + eps * std
 		return z
-
 	def forward(self, g):
 		## Encode
 		out_n, (h_n, c_n) = self.encoder(g.view(-1, self.n_window, self.n_feats))
 		z = out_n #.view(1, -1)  # Shape: (1, n_hidden*2)
 		if DEBUG:
-			print("g-shape:", g.shape)
-			print("z-shape:", z.shape)
-			print("h_n-shape:", h_n.shape)
-			print("c_n-shape:", np.array([c.detach().numpy() for c in c_n]).shape)
+			print(__file__ + ":g-shape:", g.shape)
+			print(__file__ + ":z-shape:", z.shape)
+			print(__file__ + ":h_n-shape:", h_n.shape)
+			print(__file__ + ":c_n-shape:", np.array([c.detach().numpy() for c in c_n]).shape)
 		## VAE components
 		mu = self.fc_mu(z)  # Shape: (1, n_latent)
 		logvar = self.fc_logvar(z)  # Shape: (1, n_latent)
 		z_latent = self.reparameterize(mu, logvar)  # Shape: (1, n_latent)
 		## Decoders (Phase 1)
 		if DEBUG:
-			print("Decoder 1 input shape:", z_latent.shape)
-		o_dec1, (h_n_dec1, c_n_dec1) = self.decoder1(z_latent) # to re-build the input, rebuild based on 0 init lantents
+			print(__file__ + ":z-latent shape:", z_latent.shape)
+			print(__file__ + ":Decoder 1 input shape:", (z_latent + out_n).shape)
+		o_dec1, (h_n_dec1, c_n_dec1) = self.decoder1(z_latent + out_n) # to re-build the input, rebuild based on encoder's out and lantents(bias) (with 0 init)
 		ae1 = o_dec1 #torch.concat((c_n_dec1[0],c_n_dec1[1]),axis=-1)#.view(-1, self.n_hidden * 2)  # Shape: (n_hidden*2,)
 		## Decoders (Phase 2)
 		if DEBUG:
-			print("Decoder 2 input shape:", z_latent.shape)
-		o_dec2, (h_n_dec2, c_n_dec2) = self.decoder2(z_latent, 
-											   (self.map_h_dec2(torch.concat((h_n[0],h_n[1]),axis=-1).unsqueeze(0)), 
-			   									self.map_c_dec2(torch.concat((c_n[0],c_n[1]),axis=-1).unsqueeze(0))))
+			print(__file__ + ":Decoder 2 input shape:", z_latent.shape)
+			print(__file__ + ":Dec2 hidden cons shape:", 
+		 			torch.concat((h_n[0: self.n_layers],h_n[self.n_layers:]),axis=-1).shape)
+		o_dec2, (h_n_dec2, c_n_dec2) = self.decoder2(out_n, #(h_n_dec1, c_n_dec1))	
+												(self.map_h_dec2(torch.concat((h_n[0: self.n_layers],h_n[self.n_layers:]),axis=-1)), #.unsqueeze(0)
+			   									 self.map_c_dec2(torch.concat((c_n[0: self.n_layers],c_n[self.n_layers:]),axis=-1))))#.unsqueeze(0)
 		ae2 = o_dec2 #torch.concat((c_n_dec2[0],c_n_dec2[1]),axis=-1)#.view(-1, self.n_hidden * 2)  # Shape: (n_hidden*2,)
 		## Encode-Decode (Phase 2)
 		if DEBUG:
-			print("Encoder input shape:", ae1.shape)
+			print(__file__ + ":Encoder input shape:", ae1.shape)
 		o_enc_ae1, (h_n_enc, c_n_enc) = self.encoder(ae1, (h_n, c_n))#(h_n_dec2, c_n_dec2))
 										    # (torch.concat((h_n_dec2[0],h_n_dec2[1]),axis=-1).unsqueeze(0), 
 			  								# torch.concat((c_n_dec2[0],c_n_dec2[1]),axis=-1).unsqueeze(0)))#ae1.view(1, self.n_hidden * 2, self.n_hidden * 2), (h_n, c_n))  # Update input size for encoder
-		mu_ae1 = self.fc_mu(o_enc_ae1)  # Shape: (1, n_latent)
-		logvar_ae1 = self.fc_logvar(o_enc_ae1)  # Shape: (1, n_latent)
-		z_latent_ae1 = self.reparameterize(mu_ae1, logvar_ae1)  # Shape: (1, n_latent)
-		
-		#c_n_enc_concat =  torch.concat((c_n_enc[0], c_n_enc[1]),axis=-1)
-		ae2ae1, _ = self.decoder2(z_latent_ae1, # to distinguish the rebuild and the original
-							(self.map_h_ae2ae1(torch.concat((h_n_enc[0],h_n_enc[1]),axis=-1).unsqueeze(0)), 
-							 self.map_c_ae2ae1(torch.concat((c_n_enc[0],c_n_enc[1]),axis=-1).unsqueeze(0)))) #h_n_enc, (h_n_dec2, c_n_dec2))
-		if DEBUG:
-			print("ae1 shape:", ae1.shape)
-			print("ae2 shape:", ae2.shape)
-			print("ae2ae1 shape:", ae2ae1.shape)
+		# mu_ae1 = self.fc_mu(o_enc_ae1)  # Shape: (1, n_latent)
+		# logvar_ae1 = self.fc_logvar(o_enc_ae1)  # Shape: (1, n_latent)
+		# z_latent_ae1 = self.reparameterize(mu_ae1, logvar_ae1)  # Shape: (1, n_latent)
 
+		#c_n_enc_concat =  torch.concat((c_n_enc[0], c_n_enc[1]),axis=-1)
+		ae2ae1, (h_xx, c_yy) = self.decoder2(o_enc_ae1, #(h_n_dec2, c_n_dec2))# to distinguish the rebuild and the original
+							(self.map_h_ae2ae1(torch.concat((h_n_enc[0: self.n_layers],h_n_enc[self.n_layers:]),axis=-1)), #.unsqueeze(0)
+							 self.map_c_ae2ae1(torch.concat((c_n_enc[0: self.n_layers],c_n_enc[self.n_layers:]),axis=-1))))#.unsqueeze(0) #h_n_enc, (h_n_dec2, c_n_dec2))
+		if DEBUG:
+			print(__file__ + ":ae1 shape:", ae1.shape)
+			print(__file__ + ":ae2 shape:", ae2.shape)
+			print(__file__ + ":ae2ae1 shape:", ae2ae1.shape)
 		return ae1.squeeze(0), ae2.squeeze(0), ae2ae1.squeeze(0), mu, logvar
 
 ## MSCRED Model (AAAI 19)

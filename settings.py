@@ -2,7 +2,7 @@
 DEBUG = False
 EPS = 0.00000001
 FEATURES_NUM = 2 #<arg>
-RANGE_N = 2000 #<arg> #-1
+RANGE_N = 10000 #<arg> #-1 2000
 DEBUG_PLOT_RANGE = 2000
 USE_RATIO=True
 TEST_NUM = 1000 #<arg>
